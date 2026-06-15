@@ -419,6 +419,14 @@
       <select id="journey-team-select" class="team-select"></select>
       <button class="btn-primary" id="run-journey-btn">🗺 Simulate Journey</button>
       <div id="journey-group-info" class="journey-group-info" style="display:none"></div>
+      
+      <!-- Live Sim Ticker -->
+      <div id="journey-sim-status" class="panel" style="display:none; margin-top:14px; border-color:var(--accent-2); background:rgba(34, 211, 238, 0.03);">
+        <h4 style="font-size: 10px; text-transform: uppercase; color:var(--accent-2); letter-spacing: 0.5px; margin-bottom: 4px; display:flex; align-items:center; gap:6px;">
+          <span class="live-dot pulse" style="background-color:var(--accent-2);"></span> LIVE SIMULATION PIPELINE
+        </h4>
+        <div id="journey-sim-ticker-text" style="font-size: 13px; font-weight:700; color:#fff;">Preparing simulation...</div>
+      </div>
     </div>
 
     <div class="journey-content" id="journey-content">

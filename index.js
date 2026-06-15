@@ -617,7 +617,7 @@ app.get('/api/predict/:team', (req, res) => {
   });
 });
 
-// 7. Journey Simulator
+// 7. Journey Simulator (BFS Full Knockout Bracket Simulator)
 app.get('/api/journey/:team', (req, res) => {
   const name = decodeURIComponent(req.params.team);
   const simTime = req.query.simulated_time || '2026-06-15T12:00:00Z';
@@ -628,9 +628,17 @@ app.get('/api/journey/:team', (req, res) => {
 
   const groupTeams = groups[a.group] || [];
   const groupRank = groupTeams.findIndex(t => t.team === name) + 1;
-  const qualifies = groupRank <= 2;
+  const qualifies = groupRank <= 2 || (() => {
+    const thirds = [];
+    Object.entries(groups).forEach(([g, tList]) => {
+      if (tList[2]) thirds.push({ team: tList[2].team, pts: tList[2].pts, gd: tList[2].gd, gf: tList[2].gf });
+    });
+    thirds.sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf || x.team.localeCompare(y.team));
+    const bestThirds = thirds.slice(0, 8).map(t => t.team);
+    return bestThirds.includes(name);
+  })();
 
-  // Group matches
+  // 1. Group stage matches for selected team
   const groupMatches = [];
   const gFixtures = allFix.filter(f =>
     f.stage === 'group-stage' && (f.home === name || f.away === name)
@@ -649,33 +657,183 @@ app.get('/api/journey/:team', (req, res) => {
     });
   });
 
-  // Simulate knockout path using power ratings
-  const simRound = (opponent) => {
-    const oa = ANALYTICS[opponent] || { offense:50, defense:50, passing:70, possession:50, creativity:50 };
-    const myPower = (a.offense*0.3 + a.defense*0.25 + a.passing*0.2 + a.possession*0.15 + a.creativity*0.1);
-    const oppPower = (oa.offense*0.3 + oa.defense*0.25 + oa.passing*0.2 + oa.possession*0.15 + oa.creativity*0.1);
-    const winProb = myPower / (myPower + oppPower);
-    const win = Math.random() < winProb;
-    const myGoals = win ? Math.floor(Math.random()*3)+1 : Math.floor(Math.random()*2);
-    const oppGoals = win ? Math.floor(Math.random()*2) : Math.floor(Math.random()*3)+1;
-    return { opponent, win, score: `${myGoals}-${oppGoals}`, prob: Math.round(winProb*100) };
+  // 2. Identify all 32 qualified teams
+  const groupWinners = {};
+  const groupRunners = {};
+  const allThirds = [];
+
+  Object.entries(groups).forEach(([g, teamsList]) => {
+    if (teamsList[0]) groupWinners[g] = teamsList[0].team;
+    if (teamsList[1]) groupRunners[g] = teamsList[1].team;
+    if (teamsList[2]) {
+      allThirds.push({
+        team: teamsList[2].team,
+        pts: teamsList[2].pts,
+        gd: teamsList[2].gd,
+        gf: teamsList[2].gf,
+        group: g
+      });
+    }
+  });
+
+  allThirds.sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf || x.team.localeCompare(y.team));
+  const bestThirds = allThirds.slice(0, 8).map(t => t.team);
+
+  // 3. Define Round of 32 match schedules
+  const r32Schedules = [
+    { id: 'R32_01', date: 'June 29', stadium: 'Gillette Stadium', city: 'Foxborough', home: groupWinners['A'], away: bestThirds[0] },
+    { id: 'R32_02', date: 'June 30', stadium: 'MetLife Stadium', city: 'E Rutherford', home: groupRunners['B'], away: groupRunners['F'] },
+    { id: 'R32_03', date: 'June 28', stadium: 'SoFi Stadium', city: 'Inglewood', home: groupWinners['C'], away: bestThirds[1] },
+    { id: 'R32_04', date: 'June 29', stadium: 'Estadio BBVA', city: 'Guadalupe', home: groupRunners['D'], away: groupRunners['H'] },
+    { id: 'R32_05', date: 'July 2', stadium: 'BMO Field', city: 'Toronto', home: groupWinners['E'], away: bestThirds[2] },
+    { id: 'R32_06', date: 'July 2', stadium: 'SoFi Stadium', city: 'Inglewood', home: groupRunners['J'], away: groupRunners['A'] },
+    { id: 'R32_07', date: 'July 1', stadium: 'Levi\'s Stadium', city: 'Santa Clara', home: groupWinners['G'], away: bestThirds[3] },
+    { id: 'R32_08', date: 'July 1', stadium: 'Lumen Field', city: 'Seattle', home: groupRunners['L'], away: groupRunners['C'] },
+    { id: 'R32_09', date: 'June 29', stadium: 'NRG Stadium', city: 'Houston', home: groupWinners['I'], away: bestThirds[4] },
+    { id: 'R32_10', date: 'June 30', stadium: 'AT&T Stadium', city: 'Arlington', home: groupWinners['K'], away: bestThirds[5] },
+    { id: 'R32_11', date: 'June 30', stadium: 'Estadio Azteca', city: 'Mexico City', home: groupRunners['E'], away: groupRunners['I'] },
+    { id: 'R32_12', date: 'July 1', stadium: 'Mercedes-Benz Stadium', city: 'Atlanta', home: groupWinners['B'], away: bestThirds[6] },
+    { id: 'R32_13', date: 'July 3', stadium: 'Hard Rock Stadium', city: 'Miami Gardens', home: groupRunners['G'], away: groupRunners['K'] },
+    { id: 'R32_14', date: 'July 3', stadium: 'AT&T Stadium', city: 'Arlington', home: groupWinners['D'], away: bestThirds[7] },
+    { id: 'R32_15', date: 'July 2', stadium: 'BC Place', city: 'Vancouver', home: groupWinners['H'], away: groupWinners['F'] },
+    { id: 'R32_16', date: 'July 3', stadium: 'Arrowhead Stadium', city: 'Kansas City', home: groupWinners['J'], away: groupWinners['L'] }
+  ];
+
+  const isTeamInR32 = r32Schedules.some(m => m.home === name || m.away === name);
+  if (qualifies && !isTeamInR32) {
+    for (let i = 0; i < r32Schedules.length; i++) {
+      if (r32Schedules[i].home !== name && r32Schedules[i].away !== name) {
+        r32Schedules[i].home = name;
+        break;
+      }
+    }
+  }
+
+  const simKnockout = (home, away, matchId, stage, date, stadium, city) => {
+    if (!home || !away || home === 'TBD' || away === 'TBD') {
+      return { id: matchId, stage, date, stadium, city, home: home || 'TBD', away: away || 'TBD', home_score: null, away_score: null, winner: null, prob: 50 };
+    }
+    const ha = ANALYTICS[home] || { offense:50, defense:50, passing:70, possession:50, creativity:50, overall_rating: 6.5 };
+    const aa = ANALYTICS[away] || { offense:50, defense:50, passing:70, possession:50, creativity:50, overall_rating: 6.5 };
+    
+    const hPow = (ha.offense*0.3 + ha.defense*0.25 + ha.passing*0.2 + ha.possession*0.15 + ha.creativity*0.1);
+    const aPow = (aa.offense*0.3 + aa.defense*0.25 + aa.passing*0.2 + aa.possession*0.15 + aa.creativity*0.1);
+    const winProb = hPow / (hPow + aPow);
+
+    let hash = 0;
+    const key = `${matchId}_${home}_${away}_${simTime.split('T')[0]}`;
+    for (let i = 0; i < key.length; i++) hash = key.charCodeAt(i) + ((hash << 5) - hash);
+    const seedRandom = () => {
+      const x = Math.sin(hash++) * 10000;
+      return x - Math.floor(x);
+    };
+
+    const isHomeWin = seedRandom() < winProb;
+    let homeScore = isHomeWin ? Math.floor(seedRandom()*3)+1 : Math.floor(seedRandom()*2);
+    let awayScore = isHomeWin ? Math.floor(seedRandom()*2) : Math.floor(seedRandom()*3)+1;
+    
+    if (homeScore === awayScore) {
+      if (seedRandom() < 0.5) homeScore += 1;
+      else awayScore += 1;
+    }
+    
+    const winner = homeScore > awayScore ? home : away;
+    return {
+      id: matchId, stage, date, stadium, city,
+      home, away,
+      home_score: homeScore, away_score: awayScore,
+      winner, prob: Math.round(winProb * 100)
+    };
   };
 
-  const potentialOpponents = Object.keys(ANALYTICS).filter(t => t !== name && ANALYTICS[t].group !== a.group);
-  const pick = () => potentialOpponents[Math.floor(Math.random()*potentialOpponents.length)];
+  const r32Results = r32Schedules.map(m => simKnockout(m.home, m.away, m.id, 'Round of 32', m.date, m.stadium, m.city));
 
-  const r32Opp = pick(); const r32 = qualifies ? simRound(r32Opp) : null;
-  const r16Opp = pick(); const r16 = r32?.win ? simRound(r16Opp) : null;
-  const qfOpp  = pick(); const qf  = r16?.win ? simRound(qfOpp)  : null;
-  const sfOpp  = pick(); const sf  = qf?.win  ? simRound(sfOpp)  : null;
-  const finOpp = pick(); const fin = sf?.win  ? simRound(finOpp) : null;
+  const r16Schedules = [
+    { id: 'R16_01', date: 'July 4', stadium: 'Lincoln Financial Field', city: 'Philadelphia', home: r32Results[0].winner, away: r32Results[1].winner },
+    { id: 'R16_02', date: 'July 4', stadium: 'NRG Stadium', city: 'Houston', home: r32Results[2].winner, away: r32Results[3].winner },
+    { id: 'R16_03', date: 'July 6', stadium: 'AT&T Stadium', city: 'Arlington', home: r32Results[4].winner, away: r32Results[5].winner },
+    { id: 'R16_04', date: 'July 6', stadium: 'Lumen Field', city: 'Seattle', home: r32Results[6].winner, away: r32Results[7].winner },
+    { id: 'R16_05', date: 'July 5', stadium: 'MetLife Stadium', city: 'E Rutherford', home: r32Results[8].winner, away: r32Results[9].winner },
+    { id: 'R16_06', date: 'July 5', stadium: 'Estadio Azteca', city: 'Mexico City', home: r32Results[10].winner, away: r32Results[11].winner },
+    { id: 'R16_07', date: 'July 7', stadium: 'Mercedes-Benz Stadium', city: 'Atlanta', home: r32Results[12].winner, away: r32Results[13].winner },
+    { id: 'R16_08', date: 'July 7', stadium: 'BC Place', city: 'Vancouver', home: r32Results[14].winner, away: r32Results[15].winner }
+  ];
+  const r16Results = r16Schedules.map(m => simKnockout(m.home, m.away, m.id, 'Round of 16', m.date, m.stadium, m.city));
+
+  const qfSchedules = [
+    { id: 'QF_01', date: 'July 9', stadium: 'Gillette Stadium', city: 'Foxborough', home: r16Results[0].winner, away: r16Results[1].winner },
+    { id: 'QF_02', date: 'July 10', stadium: 'SoFi Stadium', city: 'Inglewood', home: r16Results[2].winner, away: r16Results[3].winner },
+    { id: 'QF_03', date: 'July 11', stadium: 'Hard Rock Stadium', city: 'Miami Gardens', home: r16Results[4].winner, away: r16Results[5].winner },
+    { id: 'QF_04', date: 'July 11', stadium: 'Arrowhead Stadium', city: 'Kansas City', home: r16Results[6].winner, away: r16Results[7].winner }
+  ];
+  const qfResults = qfSchedules.map(m => simKnockout(m.home, m.away, m.id, 'Quarter Final', m.date, m.stadium, m.city));
+
+  const sfSchedules = [
+    { id: 'SF_01', date: 'July 14', stadium: 'AT&T Stadium', city: 'Arlington', home: qfResults[0].winner, away: qfResults[1].winner },
+    { id: 'SF_02', date: 'July 15', stadium: 'Mercedes-Benz Stadium', city: 'Atlanta', home: qfResults[2].winner, away: qfResults[3].winner }
+  ];
+  const sfResults = sfSchedules.map(m => simKnockout(m.home, m.away, m.id, 'Semi Final', m.date, m.stadium, m.city));
+
+  const thirdPlaceSchedule = { id: 'TP_01', date: 'July 18', stadium: 'Hard Rock Stadium', city: 'Miami Gardens', home: sfResults[0].winner === sfResults[0].home ? sfResults[0].away : sfResults[0].home, away: sfResults[1].winner === sfResults[1].home ? sfResults[1].away : sfResults[1].home };
+  const thirdPlaceResult = simKnockout(thirdPlaceSchedule.home, thirdPlaceSchedule.away, thirdPlaceSchedule.id, '3rd Place Match', thirdPlaceSchedule.date, thirdPlaceSchedule.stadium, thirdPlaceSchedule.city);
+
+  const finalSchedule = { id: 'FIN_01', date: 'July 19', stadium: 'MetLife Stadium', city: 'E Rutherford', home: sfResults[0].winner, away: sfResults[1].winner };
+  const finalResult = simKnockout(finalSchedule.home, finalSchedule.away, finalSchedule.id, 'World Cup Final', finalSchedule.date, finalSchedule.stadium, finalSchedule.city);
+
+  const ko = {};
+  const findMatchForTeam = (results) => results.find(m => m.home === name || m.away === name);
+
+  const myR32 = findMatchForTeam(r32Results);
+  if (myR32) {
+    ko.r32 = { opponent: myR32.home === name ? myR32.away : myR32.home, win: myR32.winner === name, score: `${myR32.home_score}-${myR32.away_score}`, prob: myR32.home === name ? myR32.prob : 100 - myR32.prob };
+    
+    if (ko.r32.win) {
+      const myR16 = findMatchForTeam(r16Results);
+      if (myR16) {
+        ko.r16 = { opponent: myR16.home === name ? myR16.away : myR16.home, win: myR16.winner === name, score: `${myR16.home_score}-${myR16.away_score}`, prob: myR16.home === name ? myR16.prob : 100 - myR16.prob };
+        
+        if (ko.r16.win) {
+          const myQF = findMatchForTeam(qfResults);
+          if (myQF) {
+            ko.qf = { opponent: myQF.home === name ? myQF.away : myQF.home, win: myQF.winner === name, score: `${myQF.home_score}-${myQF.away_score}`, prob: myQF.home === name ? myQF.prob : 100 - myQF.prob };
+            
+            if (ko.qf.win) {
+              const mySF = findMatchForTeam(sfResults);
+              if (mySF) {
+                ko.sf = { opponent: mySF.home === name ? mySF.away : mySF.home, win: mySF.winner === name, score: `${mySF.home_score}-${mySF.away_score}`, prob: mySF.home === name ? mySF.prob : 100 - mySF.prob };
+                
+                if (ko.sf.win) {
+                  ko.fin = { opponent: finalResult.home === name ? finalResult.away : finalResult.home, win: finalResult.winner === name, score: `${finalResult.home_score}-${finalResult.away_score}`, prob: finalResult.home === name ? finalResult.prob : 100 - finalResult.prob };
+                } else {
+                  ko.fin = { opponent: thirdPlaceResult.home === name ? thirdPlaceResult.away : thirdPlaceResult.home, win: thirdPlaceResult.winner === name, score: `${thirdPlaceResult.home_score}-${thirdPlaceResult.away_score}`, prob: thirdPlaceResult.home === name ? thirdPlaceResult.prob : 100 - thirdPlaceResult.prob, is_third_place: true };
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 
   res.json({
     team: name, group: a.group, group_rank: groupRank, qualifies,
     group_standings: groupTeams,
     group_matches: groupMatches,
-    knockout: { r32, r16, qf, sf, fin,
-      champion: fin?.win ? name : (fin ? fin.opponent : null)
+    full_bracket: {
+      r32: r32Results,
+      r16: r16Results,
+      qf: qfResults,
+      sf: sfResults,
+      final: finalResult,
+      third_place: thirdPlaceResult
+    },
+    knockout: {
+      r32: ko.r32 || null,
+      r16: ko.r16 || null,
+      qf: ko.qf || null,
+      sf: ko.sf || null,
+      fin: ko.fin || null,
+      champion: finalResult.winner
     }
   });
 });
@@ -835,7 +993,7 @@ app.post('/api/auction/simulate', (req, res) => {
 });
 
 // 11. Match Details Center (New Endpoint)
-app.get('/api/match/:id', (req, res) => {
+app.get('/api/match/:id', async (req, res) => {
   const matchId = req.params.id;
   const simTime = req.query.simulated_time || '2026-06-15T12:00:00Z';
   const { fixtures } = getTournamentState(simTime);
@@ -845,7 +1003,42 @@ app.get('/api/match/:id', (req, res) => {
 
   // Generate stats dynamically
   const stats = getMatchStats(match.id, match.home, match.away, match.home_score, match.away_score);
-  res.json({ match, stats });
+  
+  const hAnalytics = ANALYTICS[match.home] || {};
+  const aAnalytics = ANALYTICS[match.away] || {};
+
+  const key = nextKey();
+  let aiAnalysis = `A tactical battle between ${match.home} and ${match.away}. Expect a highly competitive match!`;
+
+  if (key) {
+    try {
+      const prompt = `You are a world-class football pundit and tactical analyst.
+Match: ${match.home} vs ${match.away}
+- ${match.home} (FIFA Overall: ${hAnalytics.overall_rating}/10, Offense: ${hAnalytics.offense}/100, Defense: ${hAnalytics.defense}/100, Passing: ${hAnalytics.passing}%, Creativity: ${hAnalytics.creativity}/100)
+- ${match.away} (FIFA Overall: ${aAnalytics.overall_rating}/10, Offense: ${aAnalytics.offense}/100, Defense: ${aAnalytics.defense}/100, Passing: ${aAnalytics.passing}%, Creativity: ${aAnalytics.creativity}/100)
+
+Provide a premium H2H tactical overview under 120 words.
+Structure clearly with bold headers:
+**H2H Playstyles**: Compare their main styles.
+**Key Factor**: Mention the deciding factor (e.g. low block counter vs high press).
+**Verdict**: Predict a specific scoreline and state why.`;
+
+      const r = await axios.post('https://api.groq.com/openai/v1/chat/completions',
+        {
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 250,
+          temperature: 0.7
+        },
+        { headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, timeout: 3500 }
+      );
+      aiAnalysis = r.data.choices[0].message.content.trim();
+    } catch (err) {
+      console.error('Match H2H Groq error:', err.message);
+    }
+  }
+
+  res.json({ match, stats, ai_analysis: aiAnalysis, home_analytics: hAnalytics, away_analytics: aAnalytics });
 });
 
 // 12. AI Live Commentary (New Endpoint)

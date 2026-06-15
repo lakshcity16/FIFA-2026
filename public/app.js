@@ -29,6 +29,12 @@ document.addEventListener('click', (e) => {
     openMatchCenter(jrnMatch.dataset.matchId);
     return;
   }
+
+  const bracketMatch = e.target.closest('.bracket-match');
+  if (bracketMatch && bracketMatch.dataset.matchId) {
+    openMatchCenter(bracketMatch.dataset.matchId);
+    return;
+  }
 });
 
 // Close modal triggers
@@ -447,6 +453,67 @@ async function openMatchCenter(matchId) {
     `;
   };
 
+  const hAnalytics = res.home_analytics || {};
+  const aAnalytics = res.away_analytics || {};
+  const hRating = hAnalytics.overall_rating || 5.0;
+  const aRating = aAnalytics.overall_rating || 5.0;
+  const hGroup = hAnalytics.group || '—';
+  const aGroup = aAnalytics.group || '—';
+
+  const h2hMetricRow = (metricName, hVal, aVal, suffix = '') => {
+    const total = hVal + aVal;
+    const hWidth = total > 0 ? (hVal / total) * 100 : 50;
+    const aWidth = total > 0 ? (aVal / total) * 100 : 50;
+    return `
+      <div class="h2h-row">
+        <div class="h2h-label-row">
+          <span>${metricName}</span>
+        </div>
+        <div class="h2h-bars-container">
+          <span class="h2h-val-left">${hVal}${suffix}</span>
+          <div class="h2h-bar-track">
+            <div class="h2h-bar-fill-left" style="width: ${hWidth}%;"></div>
+            <div class="h2h-bar-fill-right" style="width: ${aWidth}%;"></div>
+          </div>
+          <span class="h2h-val-right">${aVal}${suffix}</span>
+        </div>
+      </div>
+    `;
+  };
+
+  const h2hHtml = `
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px;">
+      <div style="background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center;">
+        <div style="font-size: 10px; text-transform: uppercase; color: var(--text-2); margin-bottom: 4px;">FIFA overall rating</div>
+        <div style="font-size: 20px; font-weight: 900; color: var(--accent-3);">★ ${hRating}</div>
+        <div style="font-size: 11px; color: var(--text-2); margin-top: 4px;">Group ${hGroup}</div>
+      </div>
+      <div style="background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center;">
+        <div style="font-size: 10px; text-transform: uppercase; color: var(--text-2); margin-bottom: 4px;">FIFA overall rating</div>
+        <div style="font-size: 20px; font-weight: 900; color: var(--accent-2);">★ ${aRating}</div>
+        <div style="font-size: 11px; color: var(--text-2); margin-top: 4px;">Group ${aGroup}</div>
+      </div>
+    </div>
+
+    <div class="h2h-chart-panel">
+      <div class="h2h-chart-title">📊 Key Metrics Head-to-Head</div>
+      ${h2hMetricRow('Offense Power', hAnalytics.offense || 50, aAnalytics.offense || 50)}
+      ${h2hMetricRow('Defense Solidity', hAnalytics.defense || 50, aAnalytics.defense || 50)}
+      ${h2hMetricRow('Passing Precision', hAnalytics.passing || 70, aAnalytics.passing || 70, '%')}
+      ${h2hMetricRow('Tactical Possession', hAnalytics.possession || 50, aAnalytics.possession || 50, '%')}
+      ${h2hMetricRow('Creativity Rating', hAnalytics.creativity || 50, aAnalytics.creativity || 50)}
+    </div>
+
+    <div class="ai-pundit-box">
+      <div class="ai-pundit-header">
+        <span>✨ Groq Llama 3 Pundit Verdict</span>
+      </div>
+      <div class="ai-pundit-content">
+        ${res.ai_analysis || "No tactical pundit analysis available."}
+      </div>
+    </div>
+  `;
+
   content.innerHTML = `
     <div style="font-size:11px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px; text-align:center;">
       ${match.stage} · ${match.stadium}, ${match.city}
@@ -471,6 +538,8 @@ async function openMatchCenter(matchId) {
     </div>
 
     ${scorersHtml}
+
+    ${h2hHtml}
 
     <div class="match-modal-tabs" style="margin-top: 20px;">
       <button class="match-modal-tab active">Statistics</button>
@@ -506,8 +575,8 @@ function renderFixtureList(fixtures, container) {
     const scoreHtml = f.is_played
       ? `<div class="fix-score">${f.home_score} – ${f.away_score}</div>`
       : `<div class="fix-score upcoming">vs</div>`;
-    const scorers = f.scorers?.length
-      ? `<div style="font-size:10px;color:var(--text-2);margin-top:4px">${f.scorers.map(s=>`${s.name} ${s.min}'`).join(', ')}</div>`
+    const scorersHtml = f.scorers?.length
+      ? `<div style="padding:0 8px 6px;font-size:10px;color:var(--text-2)">${f.scorers.map(s=>`⚽ ${s.name} ${s.min}'${s.assist ? ` (assist: ${s.assist})` : ''}`).join(' · ')}</div>`
       : '';
     return `
       <div class="fixture-item" data-match-id="${f.id}">
@@ -524,7 +593,7 @@ function renderFixtureList(fixtures, container) {
         </div>
         <div class="fix-meta">${f.city || ''}</div>
       </div>
-      ${scorers ? `<div style="padding:0 8px 6px;font-size:10px;color:var(--text-2)">${f.scorers?.map(s=>`${s.name} ×${s.min}'`).join(' · ')}</div>` : ''}
+      ${scorersHtml}
     `;
   }).join('');
 }
@@ -1380,34 +1449,14 @@ async function runJourney(teamName) {
       </div>`;
   }).join('');
 
-  // Calculate Progress and Vehicle Emoji
-  let progressIndex = 0; // Group Stage
-  let vehicleEmoji = '🚌'; // Team bus
-  
-  if (data.qualifies) {
-    progressIndex = 1; // R32
-    if (ko.r32 && ko.r32.win) {
-      progressIndex = 2; // R16
-      if (ko.r16 && ko.r16.win) {
-        progressIndex = 3; // QF
-        if (ko.qf && ko.qf.win) {
-          progressIndex = 4; // SF
-          if (ko.sf && ko.sf.win) {
-            progressIndex = 5; // Final
-          }
-        }
-      }
-    }
-  }
-
-  const wonFinal = ko.fin && ko.fin.win;
-  if (wonFinal) {
-    vehicleEmoji = '🏆'; // Champion trophy!
+  // Travel Tracker timeline HTML (initially set to Groups active)
+  let vehicleEmoji = '🚌';
+  if (ko.fin && ko.fin.win) {
+    vehicleEmoji = '🏆';
   } else {
-    vehicleEmoji = ['MEX', 'CAN', 'USA'].includes(data.fifa_code) ? '🚄' : '✈️';
+    vehicleEmoji = ['MEX', 'CAN', 'USA'].includes(data.fifa_code) ? '🚄' : '🚌';
   }
 
-  // Travel Tracker timeline HTML
   const travelTrackerHtml = `
     <div class="travel-tracker">
       <h4 style="font-size: 11px; color: var(--accent-2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; display:flex; align-items:center; gap:6px;">
@@ -1415,30 +1464,30 @@ async function runJourney(teamName) {
       </h4>
       <div class="travel-timeline">
         <div class="travel-line"></div>
-        <div class="travel-line-progress" style="width: ${progressIndex * 20}%;"></div>
-        <div class="travel-vehicle" style="left: ${progressIndex * 20}%;">${vehicleEmoji}</div>
+        <div class="travel-line-progress" style="width: 0%;"></div>
+        <div class="travel-vehicle" style="left: 0%;">${vehicleEmoji}</div>
         
-        <div class="travel-node ${progressIndex >= 0 ? 'completed' : ''}" title="Group Stage">
+        <div class="travel-node active" title="Group Stage">
           G
           <span class="travel-label">Groups<span class="travel-stadium">CDMX 🇲🇽</span></span>
         </div>
-        <div class="travel-node ${progressIndex > 1 ? 'completed' : progressIndex === 1 ? 'active' : ''}" title="Round of 32">
+        <div class="travel-node" title="Round of 32">
           32
           <span class="travel-label">R32<span class="travel-stadium">Boston 🇺🇸</span></span>
         </div>
-        <div class="travel-node ${progressIndex > 2 ? 'completed' : progressIndex === 2 ? 'active' : ''}" title="Round of 16">
+        <div class="travel-node" title="Round of 16">
           16
           <span class="travel-label">R16<span class="travel-stadium">Seattle 🇺🇸</span></span>
         </div>
-        <div class="travel-node ${progressIndex > 3 ? 'completed' : progressIndex === 3 ? 'active' : ''}" title="Quarter Finals">
+        <div class="travel-node" title="Quarter Finals">
           QF
           <span class="travel-label">QF<span class="travel-stadium">Miami 🇺🇸</span></span>
         </div>
-        <div class="travel-node ${progressIndex > 4 ? 'completed' : progressIndex === 4 ? 'active' : ''}" title="Semi Finals">
+        <div class="travel-node" title="Semi Finals">
           SF
           <span class="travel-label">SF<span class="travel-stadium">Dallas 🇺🇸</span></span>
         </div>
-        <div class="travel-node ${progressIndex === 5 ? 'active' : ''}" title="Final">
+        <div class="travel-node" title="Final">
           F
           <span class="travel-label">Final<span class="travel-stadium">New York 🇺🇸</span></span>
         </div>
@@ -1446,30 +1495,7 @@ async function runJourney(teamName) {
     </div>
   `;
 
-  // Render tree style bracket
-  const r32Box = renderBracketMatch('Round of 32', ko.r32, teamName, 'Gillette Stadium, Boston');
-  const r16Box = renderBracketMatch('Round of 16', ko.r16, teamName, 'Lumen Field, Seattle', ko.r32 && ko.r32.win);
-  const qfBox = renderBracketMatch('Quarter Finals', ko.qf, teamName, 'Hard Rock Stadium, Miami', ko.r16 && ko.r16.win);
-  const sfBox = renderBracketMatch('Semi Finals', ko.sf, teamName, 'AT&T Stadium, Dallas', ko.qf && ko.qf.win);
-  const finBox = renderBracketMatch('World Cup Final', ko.fin, teamName, 'MetLife Stadium, New York', ko.sf && ko.sf.win);
-
-  const bracketHtml = `
-    <div class="bracket-container">
-      <div class="bracket-column">${r32Box}</div>
-      <div class="bracket-column">${r16Box}</div>
-      <div class="bracket-column">${qfBox}</div>
-      <div class="bracket-column">${sfBox}</div>
-      <div class="bracket-column">${finBox}</div>
-    </div>
-  `;
-
-  const champBanner = ko.champion === teamName
-    ? `<div class="champion-banner"><div class="crown">🏆</div><h3>${teamName} WIN THE WORLD CUP!</h3></div>`
-    : `<div class="champion-banner" style="border-color:var(--text-2);background:rgba(255,255,255,.04)">
-         <div class="crown" style="font-size:28px">📅</div>
-         <h3 style="color:var(--text-2);font-size:16px">Predicted Champion: ${ko.champion || '?'}</h3>
-       </div>`;
-
+  // Render initial layout structure
   content.innerHTML = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
       ${flag ? `<img style="width:48px;height:32px;border-radius:4px;object-fit:cover" src="${flag}" alt="">` : ''}
@@ -1484,12 +1510,15 @@ async function runJourney(teamName) {
     </div>
     
     <div style="font-size:12px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Simulated Knockout Bracket Path</div>
-    ${bracketHtml}
+    <div class="bracket-container">
+      <!-- Live bracket matches will load and animate here -->
+    </div>
     
-    ${champBanner}`;
+    <div id="journey-champ-banner-container"></div>
+  `;
 
-  // Journey chart
-  const stages = ['R32','R16','QF','SF','Final','🏆'];
+  // Journey chart initialization
+  const stagesList = ['R32','R16','QF','SF','Final','🏆'];
   const probs = [data.qualifies?85:30, 55, 35, 22, 12, 6].map((v,i) => {
     const rd = [ko.r32,ko.r16,ko.qf,ko.sf,ko.fin,null][i];
     return rd ? rd.prob : (data.qualifies && i===0 ? 85 : 5);
@@ -1503,7 +1532,7 @@ async function runJourney(teamName) {
     chartJourney = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: stages,
+        labels: stagesList,
         datasets: [{
           label: 'Advance Probability %',
           data: probs,
@@ -1527,6 +1556,242 @@ async function runJourney(teamName) {
       }
     });
   }, 50);
+
+  // Setup knockout states for BFS simulation
+  let currentR32 = data.full_bracket.r32.map(m => ({ ...m, resolved: false }));
+  let currentR16 = data.full_bracket.r16.map(m => ({ ...m, resolved: false, home: 'TBD', away: 'TBD' }));
+  let currentQF = data.full_bracket.qf.map(m => ({ ...m, resolved: false, home: 'TBD', away: 'TBD' }));
+  let currentSF = data.full_bracket.sf.map(m => ({ ...m, resolved: false, home: 'TBD', away: 'TBD' }));
+  let currentFinal = { ...data.full_bracket.final, resolved: false, home: 'TBD', away: 'TBD' };
+
+  // Status text ticker element
+  const simStatus = document.getElementById('journey-sim-status');
+  const simTickerText = document.getElementById('journey-sim-ticker-text');
+  
+  simStatus.style.display = 'block';
+  simTickerText.textContent = `🚀 Starting Live Tournament Simulation for ${teamName}...`;
+
+  // Draw initial blank/TBD tree
+  const drawLiveBracket = () => {
+    const r32Html = currentR32.map(m => renderLiveBracketMatch(m, teamName)).join('');
+    const r16Html = currentR16.map(m => renderLiveBracketMatch(m, teamName)).join('');
+    const qfHtml = currentQF.map(m => renderLiveBracketMatch(m, teamName)).join('');
+    const sfHtml = currentSF.map(m => renderLiveBracketMatch(m, teamName)).join('');
+    const finHtml = renderLiveBracketMatch(currentFinal, teamName);
+
+    const container = document.querySelector('.bracket-container');
+    if (container) {
+      container.innerHTML = `
+        <div class="bracket-column" style="gap: 0 !important; justify-content: space-around;">${r32Html}</div>
+        <div class="bracket-column" style="gap: 0 !important; justify-content: space-around;">${r16Html}</div>
+        <div class="bracket-column" style="gap: 0 !important; justify-content: space-around;">${qfHtml}</div>
+        <div class="bracket-column" style="gap: 0 !important; justify-content: space-around;">${sfHtml}</div>
+        <div class="bracket-column" style="gap: 0 !important; justify-content: space-around;">${finHtml}</div>
+      `;
+    }
+  };
+
+  const updateTimelineProgress = (nodeIndex) => {
+    const lineProgress = document.querySelector('.travel-line-progress');
+    const vehicle = document.querySelector('.travel-vehicle');
+    const nodes = document.querySelectorAll('.travel-node');
+    
+    if (lineProgress) lineProgress.style.width = `${nodeIndex * 20}%`;
+    if (vehicle) vehicle.style.left = `${nodeIndex * 20}%`;
+    
+    nodes.forEach((node, i) => {
+      node.classList.remove('completed', 'active');
+      if (i < nodeIndex) {
+        node.classList.add('completed');
+      } else if (i === nodeIndex) {
+        node.classList.add('active');
+      }
+    });
+  };
+
+  // Draw starting tree
+  drawLiveBracket();
+
+  // If team did not qualify from Group stage, stop transport progression at Groups but animate bracket anyway
+  if (!data.qualifies) {
+    simTickerText.innerHTML = `❌ <span style="color:var(--red); font-weight:800;">${teamName} failed to qualify</span> from Group stage. Simulating rest of tournament...`;
+  } else {
+    // Moves to R32 node
+    updateTimelineProgress(1);
+  }
+
+  // Round of 32 Resolution Loop
+  for (let i = 0; i < currentR32.length; i++) {
+    const m = currentR32[i];
+    const isSelected = (m.home === teamName || m.away === teamName);
+    const delay = isSelected ? 1400 : 200;
+    
+    if (isSelected) {
+      simTickerText.innerHTML = `🔴 LIVE: <span style="color:var(--accent-2); font-weight:800;">${m.home} vs ${m.away}</span> (Round of 32)`;
+    }
+    
+    await new Promise(r => setTimeout(r, delay));
+    m.resolved = true;
+    m.winner = data.full_bracket.r32[i].winner;
+    m.home_score = data.full_bracket.r32[i].home_score;
+    m.away_score = data.full_bracket.r32[i].away_score;
+    
+    // Update next round slot
+    const nextIdx = Math.floor(i / 2);
+    if (i % 2 === 0) {
+      currentR16[nextIdx].home = m.winner;
+    } else {
+      currentR16[nextIdx].away = m.winner;
+    }
+    
+    drawLiveBracket();
+  }
+
+  let isAlive = data.qualifies && currentR32.some(m => (m.home === teamName || m.away === teamName) && m.winner === teamName);
+  if (isAlive) {
+    updateTimelineProgress(2); // Move to R16 Seattle
+  } else if (data.qualifies) {
+    simTickerText.innerHTML = `❌ <span style="color:var(--red); font-weight:800;">${teamName} Eliminated</span> in Round of 32. Simulating rest of tournament...`;
+  }
+
+  // Round of 16 Resolution Loop
+  for (let i = 0; i < currentR16.length; i++) {
+    const m = currentR16[i];
+    const isSelected = (m.home === teamName || m.away === teamName);
+    const delay = isSelected ? 1400 : 200;
+    
+    if (isSelected && isAlive) {
+      simTickerText.innerHTML = `🔴 LIVE: <span style="color:var(--accent-2); font-weight:800;">${m.home} vs ${m.away}</span> (Round of 16)`;
+    }
+    
+    await new Promise(r => setTimeout(r, delay));
+    m.resolved = true;
+    m.winner = data.full_bracket.r16[i].winner;
+    m.home_score = data.full_bracket.r16[i].home_score;
+    m.away_score = data.full_bracket.r16[i].away_score;
+    
+    const nextIdx = Math.floor(i / 2);
+    if (i % 2 === 0) {
+      currentQF[nextIdx].home = m.winner;
+    } else {
+      currentQF[nextIdx].away = m.winner;
+    }
+    
+    drawLiveBracket();
+  }
+
+  isAlive = isAlive && currentR16.some(m => (m.home === teamName || m.away === teamName) && m.winner === teamName);
+  if (isAlive) {
+    updateTimelineProgress(3); // Move to QF Miami
+  } else if (isAlive === false && data.qualifies && !simTickerText.textContent.includes("Eliminated")) {
+    simTickerText.innerHTML = `❌ <span style="color:var(--red); font-weight:800;">${teamName} Eliminated</span> in Round of 16. Simulating rest of tournament...`;
+  }
+
+  // Quarter Finals Resolution Loop
+  for (let i = 0; i < currentQF.length; i++) {
+    const m = currentQF[i];
+    const isSelected = (m.home === teamName || m.away === teamName);
+    const delay = isSelected ? 1400 : 200;
+    
+    if (isSelected && isAlive) {
+      simTickerText.innerHTML = `🔴 LIVE: <span style="color:var(--accent-2); font-weight:800;">${m.home} vs ${m.away}</span> (Quarter Finals)`;
+    }
+    
+    await new Promise(r => setTimeout(r, delay));
+    m.resolved = true;
+    m.winner = data.full_bracket.qf[i].winner;
+    m.home_score = data.full_bracket.qf[i].home_score;
+    m.away_score = data.full_bracket.qf[i].away_score;
+    
+    const nextIdx = Math.floor(i / 2);
+    if (i % 2 === 0) {
+      currentSF[nextIdx].home = m.winner;
+    } else {
+      currentSF[nextIdx].away = m.winner;
+    }
+    
+    drawLiveBracket();
+  }
+
+  isAlive = isAlive && currentQF.some(m => (m.home === teamName || m.away === teamName) && m.winner === teamName);
+  if (isAlive) {
+    updateTimelineProgress(4); // Move to SF Dallas
+  } else if (isAlive === false && data.qualifies && !simTickerText.textContent.includes("Eliminated")) {
+    simTickerText.innerHTML = `❌ <span style="color:var(--red); font-weight:800;">${teamName} Eliminated</span> in Quarter Finals. Simulating rest of tournament...`;
+  }
+
+  // Semi Finals Resolution Loop
+  for (let i = 0; i < currentSF.length; i++) {
+    const m = currentSF[i];
+    const isSelected = (m.home === teamName || m.away === teamName);
+    const delay = isSelected ? 1400 : 200;
+    
+    if (isSelected && isAlive) {
+      simTickerText.innerHTML = `🔴 LIVE: <span style="color:var(--accent-2); font-weight:800;">${m.home} vs ${m.away}</span> (Semi Finals)`;
+    }
+    
+    await new Promise(r => setTimeout(r, delay));
+    m.resolved = true;
+    m.winner = data.full_bracket.sf[i].winner;
+    m.home_score = data.full_bracket.sf[i].home_score;
+    m.away_score = data.full_bracket.sf[i].away_score;
+    
+    if (i === 0) {
+      currentFinal.home = m.winner;
+    } else {
+      currentFinal.away = m.winner;
+    }
+    
+    drawLiveBracket();
+  }
+
+  isAlive = isAlive && currentSF.some(m => (m.home === teamName || m.away === teamName) && m.winner === teamName);
+  if (isAlive) {
+    updateTimelineProgress(5); // Move to Final New York
+  } else if (isAlive === false && data.qualifies && !simTickerText.textContent.includes("Eliminated")) {
+    simTickerText.innerHTML = `❌ <span style="color:var(--red); font-weight:800;">${teamName} Eliminated</span> in Semi Finals. Simulating rest of tournament...`;
+  }
+
+  // World Cup Final Match Resolution
+  {
+    const m = currentFinal;
+    const isSelected = (m.home === teamName || m.away === teamName);
+    const delay = isSelected ? 1400 : 200;
+    
+    if (isSelected && isAlive) {
+      simTickerText.innerHTML = `👑 LIVE: <span style="color:var(--accent-2); font-weight:800;">${m.home} vs ${m.away}</span> (World Cup Final)`;
+    }
+    
+    await new Promise(r => setTimeout(r, delay));
+    m.resolved = true;
+    m.winner = data.full_bracket.final.winner;
+    m.home_score = data.full_bracket.final.home_score;
+    m.away_score = data.full_bracket.final.away_score;
+    
+    drawLiveBracket();
+  }
+
+  const isChamp = data.knockout.champion === teamName;
+  if (isChamp) {
+    simTickerText.innerHTML = `🏆 <span style="color:var(--gold); font-weight:900;">${teamName} has won the FIFA World Cup 2026!</span>`;
+    const vehicle = document.querySelector('.travel-vehicle');
+    if (vehicle) vehicle.textContent = '🏆';
+    playChampCelebration();
+  } else {
+    simTickerText.innerHTML = `🏁 Simulation complete! Winner: <span style="color:var(--accent-2); font-weight:800;">${data.knockout.champion}</span>`;
+  }
+
+  // Add the final champion banner
+  const champBannerContainer = document.getElementById('journey-champ-banner-container');
+  if (champBannerContainer) {
+    champBannerContainer.innerHTML = isChamp
+      ? `<div class="champion-banner"><div class="crown">🏆</div><h3>${teamName} WIN THE WORLD CUP!</h3></div>`
+      : `<div class="champion-banner" style="border-color:var(--text-2);background:rgba(255,255,255,.04)">
+           <div class="crown" style="font-size:28px">📅</div>
+           <h3 style="color:var(--text-2);font-size:16px">Predicted Champion: ${data.knockout.champion || '?'}</h3>
+         </div>`;
+  }
+}
 }
 
 /* ══════════════════ UTILITIES ══════════════════ */
@@ -1962,4 +2227,74 @@ function renderBracketMatch(roundLabel, roundData, teamName, defaultStadium, par
       </div>
     </div>
   `;
+}
+
+function renderLiveBracketMatch(match, teamName) {
+  const isSelectedTeam = (match.home === teamName || match.away === teamName);
+  const homeFlag = getFlagUrl(match.home);
+  const awayFlag = getFlagUrl(match.away);
+  
+  const resolved = match.resolved;
+  const homeScore = resolved ? match.home_score : '?';
+  const awayScore = resolved ? match.away_score : '?';
+  
+  let matchClass = "bracket-match";
+  if (isSelectedTeam) matchClass += " active-path";
+  if (resolved) {
+    if (match.winner === teamName) {
+      // Keep highlighted
+    } else if (isSelectedTeam && match.winner !== teamName) {
+      matchClass += " eliminated";
+    }
+  }
+
+  const clickAttr = resolved ? `data-match-id="${match.id}" style="cursor: pointer;"` : '';
+
+  return `
+    <div class="${matchClass}" ${clickAttr}>
+      <div class="bm-round-title">
+        <span>${match.stage}</span>
+        <span style="font-size:8px; color:var(--accent-2); font-weight:bold;">${match.prob}% Prob</span>
+      </div>
+      <div class="bm-team ${resolved && match.winner === match.home ? 'winner' : ''}">
+        ${homeFlag ? `<img class="bm-team-flag" src="${homeFlag}">` : '⚽'}
+        <span class="bm-team-name">${match.home || 'TBD'}</span>
+        <span class="bm-team-score">${homeScore}</span>
+      </div>
+      <div class="bm-team ${resolved && match.winner === match.away ? 'winner' : ''}">
+        ${awayFlag ? `<img class="bm-team-flag" src="${awayFlag}">` : '⚽'}
+        <span class="bm-team-name">${match.away || 'TBD'}</span>
+        <span class="bm-team-score">${awayScore}</span>
+      </div>
+      <div class="bm-meta">
+        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:110px;">📍 ${match.stadium ? match.stadium.split(',')[0] : 'TBD'}</span>
+        <span style="color:${resolved ? (match.winner === teamName ? 'var(--green)' : 'var(--red)') : 'var(--text-2)'}; font-weight:bold;">
+          ${resolved ? (match.winner === teamName ? 'WIN' : 'LOST') : 'LIVE'}
+        </span>
+      </div>
+    </div>
+  `;
+}
+
+function playChampCelebration() {
+  const overlay = document.createElement('div');
+  overlay.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.4); pointer-events:none; z-index:9999; display:flex; justify-content:center; align-items:center; overflow:hidden;';
+  document.body.appendChild(overlay);
+
+  for (let i = 0; i < 40; i++) {
+    const el = document.createElement('div');
+    el.textContent = ['🏆','⚽','✨','🎉','🥇'][Math.floor(Math.random()*5)];
+    el.style.position = 'absolute';
+    el.style.fontSize = `${Math.random()*24 + 16}px`;
+    el.style.left = `${Math.random()*100}vw`;
+    el.style.top = '-50px';
+    el.style.transition = `transform ${Math.random()*2 + 2}s linear`;
+    overlay.appendChild(el);
+
+    setTimeout(() => {
+      el.style.transform = `translateY(110vh) rotate(${Math.random()*720 - 360}deg)`;
+    }, 50);
+  }
+
+  setTimeout(() => overlay.remove(), 4000);
 }

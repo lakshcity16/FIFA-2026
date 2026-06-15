@@ -1274,19 +1274,24 @@ body.theme-frost {
 /* Tournament Bracket View */
 .bracket-container {
   display: flex;
-  gap: 20px;
+  gap: 24px;
   justify-content: space-between;
   overflow-x: auto;
-  padding: 20px 0;
+  padding: 20px 10px;
   position: relative;
+  height: 1400px !important;
+  align-items: stretch;
+  background: rgba(0,0,0,0.15);
+  border-radius: var(--radius);
+  border: 1px dashed var(--border);
 }
 .bracket-column {
   display: flex;
   flex-direction: column;
   justify-content: space-around;
   flex: 1;
-  min-width: 200px;
-  gap: 16px;
+  min-width: 215px;
+  gap: 0 !important;
 }
 .bracket-match {
   background: var(--surface-2);
@@ -1390,6 +1395,100 @@ body.theme-frost {
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
 }
+
+/* Comparative H2H Gauges & AI Pundit Overview */
+.h2h-chart-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-top: 16px;
+}
+.h2h-chart-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  margin-bottom: 12px;
+  letter-spacing: 0.5px;
+}
+.h2h-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.h2h-row:last-child {
+  margin-bottom: 0;
+}
+.h2h-label-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-2);
+}
+.h2h-bars-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 12px;
+}
+.h2h-val-left, .h2h-val-right {
+  font-size: 11px;
+  font-weight: 800;
+  min-width: 22px;
+}
+.h2h-val-left { text-align: right; color: var(--accent-3); }
+.h2h-val-right { text-align: left; color: var(--accent-2); }
+.h2h-bar-track {
+  flex: 1;
+  background: rgba(255,255,255,0.04);
+  border-radius: 6px;
+  height: 6px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+}
+.h2h-bar-fill-left, .h2h-bar-fill-right {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.h2h-bar-fill-left {
+  background: linear-gradient(90deg, var(--accent-3), var(--accent));
+  margin-left: auto;
+}
+.h2h-bar-fill-right {
+  background: linear-gradient(90deg, var(--accent-2), var(--accent));
+}
+
+.ai-pundit-box {
+  background: rgba(167, 139, 250, 0.05);
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  border-radius: 10px;
+  padding: 14px;
+  margin-top: 16px;
+  box-shadow: 0 4px 15px rgba(167, 139, 250, 0.05);
+}
+.ai-pundit-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.ai-pundit-content {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  font-style: italic;
+}
+
 
 
 
