@@ -721,3 +721,126 @@ input[type="date"]:focus{border-color:var(--accent)}
   border-color: var(--accent);
 }
 
+/* ── Real Live Data Tab ────────────────────────────────────── */
+.real-matches-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+.real-match-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.real-match-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-2), var(--accent-3));
+  opacity: 0.8;
+}
+.real-match-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-glow);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+.real-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 8px;
+}
+.real-league-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.real-league-logo {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+.real-match-status {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.real-match-status.live {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--green);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.real-match-status.finished {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-2);
+}
+.real-match-status.scheduled {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--accent);
+}
+.real-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.real-team-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.real-team-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.real-team-logo {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+.real-team-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
+.real-team-score {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--accent-2);
+  font-family: monospace;
+}
+.real-team-score.scheduled {
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+.real-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-2);
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+.real-kickoff-time {
+  font-weight: 500;
+}
+

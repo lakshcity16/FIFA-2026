@@ -187,6 +187,8 @@ async function triggerTimeRefresh(fullRedraw = true) {
     if (sel && sel.value) {
       runJourney(sel.value);
     }
+  } else if (activeTab === 'realdata') {
+    await fetchRealLiveData();
   }
 }
 
@@ -1418,4 +1420,106 @@ function getFlagUrl(teamName) {
   };
   const iso = iso2Map[teamName];
   return iso ? `https://flagcdn.com/w40/${iso}.png` : null;
+}
+
+/* ══════════════════ REAL LIVE DATA ══════════════════ */
+async function fetchRealLiveData() {
+  const listContainer = document.getElementById('real-matches-list');
+  const sourceEl = document.getElementById('real-feed-source');
+  const timeEl = document.getElementById('real-feed-time');
+  
+  if (!listContainer) return;
+  
+  listContainer.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:40px;"><div class="spinner" style="margin:auto; width:28px; height:28px; border-width:3px; border-top-color:var(--accent-2)"></div></div>';
+  
+  try {
+    const res = await fetch('/api/real-live').then(r => r.json());
+    
+    // Set status details
+    if (sourceEl) {
+      let sourceText = 'Live Feed (API)';
+      if (res.source === 'cache') sourceText = 'Live Feed (Cached)';
+      else if (res.source === 'demo') sourceText = 'Demo Mode (Fallback)';
+      else if (res.source === 'demo_empty') sourceText = 'Demo Mode (No matches today)';
+      else if (res.source === 'demo_fallback') sourceText = 'Demo Mode (API error)';
+      sourceEl.textContent = sourceText;
+    }
+    
+    if (timeEl && res.refreshedAt) {
+      const date = new Date(res.refreshedAt);
+      timeEl.textContent = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+    
+    const fixtures = res.fixtures || [];
+    if (fixtures.length === 0) {
+      listContainer.innerHTML = '<div style="grid-column: 1/-1; color:var(--text-2); font-size:13px; padding:40px; text-align:center">No real-world matches scheduled for today</div>';
+      return;
+    }
+    
+    listContainer.innerHTML = fixtures.map(f => {
+      // Determine status display and CSS class
+      let statusClass = 'scheduled';
+      let statusText = f.status || 'NS';
+      let timeText = '';
+      
+      const liveStatuses = ['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'INPROGRESS'];
+      const finishedStatuses = ['FT', 'AET', 'PEN', 'FINISHED'];
+      
+      if (liveStatuses.includes(f.status?.toUpperCase()) || (typeof f.status === 'string' && f.status.match(/^\d+$/))) {
+        statusClass = 'live';
+        statusText = 'Live';
+        timeText = f.time ? `${f.time}'` : '';
+      } else if (finishedStatuses.includes(f.status?.toUpperCase())) {
+        statusClass = 'finished';
+        statusText = 'Finished';
+      } else {
+        // Scheduled or kickoff time
+        statusClass = 'scheduled';
+        statusText = 'Scheduled';
+      }
+      
+      const kickoffStr = new Date(f.kickoff).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      return `
+        <div class="real-match-card">
+          <div class="real-card-header">
+            <span class="real-league-badge">
+              ${f.logo ? `<img class="real-league-logo" src="${f.logo}" alt="">` : '⚽'}
+              <span>${f.league || 'Unknown League'} (${f.country || 'International'})</span>
+            </span>
+            <span class="real-match-status ${statusClass}">
+              ${statusText} ${timeText}
+            </span>
+          </div>
+          <div class="real-card-body">
+            <div class="real-team-row">
+              <div class="real-team-info">
+                ${f.home_logo ? `<img class="real-team-logo" src="${f.home_logo}" alt="">` : ''}
+                <span class="real-team-name">${f.home}</span>
+              </div>
+              <span class="real-team-score ${statusClass === 'scheduled' ? 'scheduled' : ''}">
+                ${statusClass === 'scheduled' ? '–' : (f.score?.home !== undefined ? f.score.home : 0)}
+              </span>
+            </div>
+            <div class="real-team-row">
+              <div class="real-team-info">
+                ${f.away_logo ? `<img class="real-team-logo" src="${f.away_logo}" alt="">` : ''}
+                <span class="real-team-name">${f.away}</span>
+              </div>
+              <span class="real-team-score ${statusClass === 'scheduled' ? 'scheduled' : ''}">
+                ${statusClass === 'scheduled' ? '–' : (f.score?.away !== undefined ? f.score.away : 0)}
+              </span>
+            </div>
+          </div>
+          <div class="real-card-footer">
+            <span class="real-kickoff-time">Kickoff: ${kickoffStr}</span>
+            <span style="font-size: 9px; opacity: 0.7;">ID: #${f.id}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('Failed to fetch real live data:', err);
+    listContainer.innerHTML = '<div style="grid-column: 1/-1; color:var(--red); font-size:13px; padding:40px; text-align:center">Error loading live feed data. Please try again.</div>';
+  }
 }

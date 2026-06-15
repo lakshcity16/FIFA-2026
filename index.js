@@ -46,9 +46,73 @@ const nextKey = () => { const k = GROQ_KEYS[groqIdx]; groqIdx = (groqIdx+1)%GROQ
 // ── Tournament Live Match & Stats Engine ──────────────────────
 
 const SPECIAL_MATCH_RESOLUTIONS = {
-  "M010": { // Germany vs Curacao (June 14)
-    homeScore: 7,
-    awayScore: 1,
+  "M001": { // Mexico vs South Africa (2-0)
+    homeScore: 2, awayScore: 0,
+    scorers: [
+      { name: 'Santiago Giménez', min: 34, team: 'home' },
+      { name: 'Hirving Lozano', min: 72, team: 'home' }
+    ]
+  },
+  "M002": { // Korea Republic vs Czechia (2-1)
+    homeScore: 2, awayScore: 1,
+    scorers: [
+      { name: 'Son Heung-min', min: 19, team: 'home' },
+      { name: 'Cho Gue-sung', min: 64, team: 'home' },
+      { name: 'Patrik Schick', min: 45, team: 'away' }
+    ]
+  },
+  "M003": { // Canada vs Bosnia (1-1)
+    homeScore: 1, awayScore: 1,
+    scorers: [
+      { name: 'Jonathan David', min: 58, team: 'home' },
+      { name: 'Edin Džeko', min: 70, team: 'away' }
+    ]
+  },
+  "M004": { // United States vs Paraguay (4-1)
+    homeScore: 4, awayScore: 1,
+    scorers: [
+      { name: 'Christian Pulisic', min: 12, team: 'home' },
+      { name: 'Folarin Balogun', min: 38, team: 'home' },
+      { name: 'Weston McKennie', min: 55, team: 'home' },
+      { name: 'Timothy Weah', min: 82, team: 'home' },
+      { name: 'Miguel Almirón', min: 49, team: 'away' }
+    ]
+  },
+  "M005": { // Haiti vs Scotland (0-1)
+    homeScore: 0, awayScore: 1,
+    scorers: [
+      { name: 'John McGinn', min: 62, team: 'away' }
+    ]
+  },
+  "M006": { // Australia vs Turkiye (2-0)
+    homeScore: 2, awayScore: 0,
+    scorers: [
+      { name: 'Mitchell Duke', min: 22, team: 'home' },
+      { name: 'Mathew Leckie', min: 78, team: 'home' }
+    ]
+  },
+  "M007": { // Brazil vs Morocco (1-1)
+    homeScore: 1, awayScore: 1,
+    scorers: [
+      { name: 'Vinícius Júnior', min: 27, team: 'home' },
+      { name: 'Hakim Ziyech', min: 68, team: 'away' }
+    ]
+  },
+  "M008": { // Qatar vs Switzerland (1-1)
+    homeScore: 1, awayScore: 1,
+    scorers: [
+      { name: 'Almoez Ali', min: 41, team: 'home' },
+      { name: 'Breel Embolo', min: 56, team: 'away' }
+    ]
+  },
+  "M009": { // Cote d'Ivoire vs Ecuador (1-0)
+    homeScore: 1, awayScore: 0,
+    scorers: [
+      { name: 'Sébastien Haller', min: 51, team: 'home' }
+    ]
+  },
+  "M010": { // Germany vs Curacao (7-1)
+    homeScore: 7, awayScore: 1,
     scorers: [
       { name: 'Florian Wirtz', min: 14, team: 'home', assist: 'Kai Havertz' },
       { name: 'Jamal Musiala', min: 28, team: 'home', assist: 'Joshua Kimmich' },
@@ -59,12 +123,50 @@ const SPECIAL_MATCH_RESOLUTIONS = {
       { name: 'Niclas Füllkrug', min: 89, team: 'home', assist: 'David Raum' },
       { name: 'Juninho Bacuna', min: 82, team: 'away', assist: 'Rangelo Janga' }
     ]
+  },
+  "M011": { // Netherlands vs Japan (2-2)
+    homeScore: 2, awayScore: 2,
+    scorers: [
+      { name: 'Cody Gakpo', min: 33, team: 'home' },
+      { name: 'Memphis Depay', min: 74, team: 'home' },
+      { name: 'Kaoru Mitoma', min: 45, team: 'away' },
+      { name: 'Kyogo Furuhashi', min: 81, team: 'away' }
+    ]
+  },
+  "M012": { // Sweden vs Tunisia (5-1)
+    homeScore: 5, awayScore: 1,
+    scorers: [
+      { name: 'Alexander Isak', min: 15, team: 'home' },
+      { name: 'Dejan Kulusevski', min: 29, team: 'home' },
+      { name: 'Viktor Gyökeres', min: 61, team: 'home' },
+      { name: 'Alexander Isak', min: 53, team: 'home' },
+      { name: 'Emil Forsberg', min: 88, team: 'home' },
+      { name: 'Youssef Msakni', min: 42, team: 'away' }
+    ]
   }
 };
 
+function getFuzzySquadPlayer(teamName, namePart) {
+  const squad = SQUADS[teamName] || [];
+  const clean = str => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const searchPart = clean(namePart);
+  const found = squad.find(p => clean(p.name).includes(searchPart));
+  return found ? found.name : namePart;
+}
+
 function getMatchScore(matchId, home, away) {
   if (SPECIAL_MATCH_RESOLUTIONS[matchId]) {
-    return SPECIAL_MATCH_RESOLUTIONS[matchId];
+    const resObj = SPECIAL_MATCH_RESOLUTIONS[matchId];
+    const scorers = resObj.scorers.map(s => ({
+      ...s,
+      name: getFuzzySquadPlayer(s.team === 'home' ? home : away, s.name),
+      assist: s.assist ? getFuzzySquadPlayer(s.team === 'home' ? home : away, s.assist) : null
+    }));
+    return {
+      homeScore: resObj.homeScore,
+      awayScore: resObj.awayScore,
+      scorers
+    };
   }
 
   // Seeded random score generation based on team strengths
@@ -777,6 +879,124 @@ app.get('/api/compare', (req, res) => {
   const player1 = find(p1), player2 = find(p2);
   if (!player1 || !player2) return res.status(404).json({ error: 'One or both players not found' });
   res.json({ player1, player2 });
+});
+
+// 15. Real Live Football Feed proxy (API-Football)
+let realLiveCache = {
+  dateStr: '',
+  fetchedAt: 0,
+  data: null
+};
+
+const getTodayISTString = () => {
+  const d = new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000));
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+function getDemoRealMatches() {
+  return [
+    {
+      id: 1, league: 'European Championship', country: 'Europe',
+      logo: 'https://media.api-sports.io/football/leagues/4.png',
+      home: 'Germany', home_logo: 'https://media.api-sports.io/football/teams/25.png',
+      away: 'Scotland', away_logo: 'https://media.api-sports.io/football/teams/32.png',
+      score: { home: 5, away: 1 }, status: 'FT', time: 90,
+      kickoff: new Date().toISOString()
+    },
+    {
+      id: 2, league: 'Copa America', country: 'South America',
+      logo: 'https://media.api-sports.io/football/leagues/9.png',
+      home: 'Argentina', home_logo: 'https://media.api-sports.io/football/teams/26.png',
+      away: 'Canada', away_logo: 'https://media.api-sports.io/football/teams/30.png',
+      score: { home: 2, away: 0 }, status: 'FT', time: 90,
+      kickoff: new Date().toISOString()
+    },
+    {
+      id: 3, league: 'European Championship', country: 'Europe',
+      logo: 'https://media.api-sports.io/football/leagues/4.png',
+      home: 'Spain', home_logo: 'https://media.api-sports.io/football/teams/9.png',
+      away: 'Croatia', away_logo: 'https://media.api-sports.io/football/teams/3.png',
+      score: { home: 3, away: 0 }, status: 'FT', time: 90,
+      kickoff: new Date().toISOString()
+    },
+    {
+      id: 4, league: 'Major League Soccer', country: 'USA',
+      logo: 'https://media.api-sports.io/football/leagues/253.png',
+      home: 'Inter Miami', home_logo: 'https://media.api-sports.io/football/teams/1605.png',
+      away: 'Columbus Crew', away_logo: 'https://media.api-sports.io/football/teams/1612.png',
+      score: { home: 2, away: 1 }, status: 'FT', time: 90,
+      kickoff: new Date().toISOString()
+    }
+  ];
+}
+
+app.get('/api/real-live', async (req, res) => {
+  const key = process.env.fapi;
+  const todayStr = getTodayISTString();
+  const now = Date.now();
+
+  // If cache is valid (fetched today, and is less than 1 hour old)
+  if (realLiveCache.data && realLiveCache.dateStr === todayStr && (now - realLiveCache.fetchedAt < 60 * 60 * 1000)) {
+    return res.json({ source: 'cache', refreshedAt: new Date(realLiveCache.fetchedAt).toISOString(), fixtures: realLiveCache.data });
+  }
+
+  if (!key || key.trim() === '' || key === 'a16312a1b9f2d53f5a3979a527f0f3d7') {
+    // Return fallback demo data if fapi key is not configured or is a placeholder
+    const demoMatches = getDemoRealMatches();
+    return res.json({ source: 'demo', refreshedAt: new Date().toISOString(), fixtures: demoMatches });
+  }
+
+  try {
+    const response = await axios.get('https://v3.football.api-sports.io/fixtures', {
+      headers: {
+        'x-apisports-key': key
+      },
+      params: {
+        date: todayStr
+      },
+      timeout: 5000
+    });
+
+    const list = response.data?.response || [];
+    if (list.length > 0) {
+      const formatted = list.map(item => ({
+        id: item.fixture.id,
+        league: item.league.name,
+        country: item.league.country,
+        logo: item.league.logo,
+        home: item.teams.home.name,
+        home_logo: item.teams.home.logo,
+        away: item.teams.away.name,
+        away_logo: item.teams.away.logo,
+        score: {
+          home: item.goals.home !== null ? item.goals.home : 0,
+          away: item.goals.away !== null ? item.goals.away : 0
+        },
+        status: item.fixture.status.short,
+        time: item.fixture.status.elapsed || 0,
+        kickoff: item.fixture.date
+      }));
+
+      // Update cache
+      realLiveCache = {
+        dateStr: todayStr,
+        fetchedAt: now,
+        data: formatted
+      };
+
+      return res.json({ source: 'api', refreshedAt: new Date(now).toISOString(), fixtures: formatted });
+    } else {
+      const demoMatches = getDemoRealMatches();
+      return res.json({ source: 'demo_empty', refreshedAt: new Date().toISOString(), fixtures: demoMatches });
+    }
+  } catch (err) {
+    console.error('API-Football error:', err.message);
+    const demoMatches = getDemoRealMatches();
+    return res.json({ source: 'demo_fallback', refreshedAt: new Date().toISOString(), fixtures: demoMatches });
+  }
 });
 
 app.listen(PORT, () => console.log(`\n🏆 FIFA 2026 Dashboard running → http://localhost:${PORT}\n`));

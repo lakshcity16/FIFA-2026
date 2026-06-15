@@ -32,6 +32,7 @@
       <button class="nav-btn" data-tab="groups">Groups &amp; Standings</button>
       <button class="nav-btn" data-tab="teams">48 Teams</button>
       <button class="nav-btn" data-tab="ai">AI Inference</button>
+      <button class="nav-btn" data-tab="realdata">Real Live API</button>
       <button class="nav-btn" data-tab="auction">Draft Auction</button>
       <button class="nav-btn" data-tab="journey">Journey Sim</button>
     </nav>
@@ -341,6 +342,32 @@
   <div id="journey-chart-section" class="panel full-panel" style="display:none; margin-top:24px">
     <h3>Knockout Stage Probability Breakdown</h3>
     <div class="chart-wrap"><canvas id="chart-journey"></canvas></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- TAB 7: REAL LIVE DATA                                  -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="tab-realdata" class="tab">
+  <div class="page-title">
+    <h1>Real-World Football Feed</h1>
+    <p>Live scores and fixtures from real-world matches today (refreshed daily at 9:00 AM IST)</p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header" style="flex-wrap: wrap; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="live-dot pulse"></span>
+        <h3>Today's Real-World Matches</h3>
+      </div>
+      <div class="feed-status" style="font-size: 0.9rem; color: var(--text-2);">
+        Status: <span id="real-feed-source" style="font-weight: bold; color: var(--accent-2);">Loading...</span> · 
+        Refreshed at: <span id="real-feed-time" style="font-weight: bold;">--:--</span>
+      </div>
+    </div>
+    <div id="real-matches-list" class="real-matches-grid" style="margin-top: 16px;">
+      <!-- Real matches loaded here -->
+    </div>
   </div>
 </section>
 
