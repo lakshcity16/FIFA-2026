@@ -10,13 +10,45 @@ let _teams = [], _groups = {}, _fixtures = [], _analytics = {}, _performers = {}
 // Chart instances (kept for destroy-on-redraw)
 let chartGoalsGroup, chartRadar, chartBar, chartJourney, chartPrediction;
 
+// Time Machine State
+let _simulatedDate = new Date('2026-06-15T12:00:00Z'); // Default start time
+let _tmInterval = null;
+let _tmIsPlaying = false;
+let _commentaryIntervals = {};
+
+// Click delegation for match center
+document.addEventListener('click', (e) => {
+  const fixtureItem = e.target.closest('.fixture-item');
+  if (fixtureItem && fixtureItem.dataset.matchId) {
+    openMatchCenter(fixtureItem.dataset.matchId);
+    return;
+  }
+  
+  const jrnMatch = e.target.closest('.jrn-match');
+  if (jrnMatch && jrnMatch.dataset.matchId) {
+    openMatchCenter(jrnMatch.dataset.matchId);
+    return;
+  }
+});
+
+// Close modal triggers
+document.addEventListener('DOMContentLoaded', () => {
+  const closeBtn = document.getElementById('close-match-modal');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      document.getElementById('match-modal').style.display = 'none';
+    });
+  }
+});
+
 /* ══════════════════ INIT ══════════════════ */
 document.addEventListener('DOMContentLoaded', async () => {
+  initTimeMachine();
   await Promise.all([
     fetchTeams(), fetchGroups(), fetchPerformers()
   ]);
   initNav();
-  initOverview();
+  await refreshOverviewTab();
   initGroupsTab();
   initTeamsTab();
   initAI();
@@ -24,11 +56,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   initJourney();
 });
 
-/* ── Fetch helpers ── */
-const $get = url => fetch(API + url).then(r => r.json()).catch(() => ({}));
-const $post = (url, body) => fetch(API + url, {
-  method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
-}).then(r => r.json()).catch(e => ({ error: e.message }));
+/* ── Fetch helpers (automatically append simulated_time) ── */
+const $get = url => {
+  const separator = url.includes('?') ? '&' : '?';
+  const fullUrl = url + separator + `simulated_time=${encodeURIComponent(_simulatedDate.toISOString())}`;
+  return fetch(API + fullUrl).then(r => r.json()).catch(() => ({}));
+};
+
+const $post = (url, body) => {
+  const separator = url.includes('?') ? '&' : '?';
+  const fullUrl = url + separator + `simulated_time=${encodeURIComponent(_simulatedDate.toISOString())}`;
+  return fetch(API + fullUrl, {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+  }).then(r => r.json()).catch(e => ({ error: e.message }));
+};
 
 async function fetchTeams() {
   const d = await $get('/api/teams');
@@ -42,20 +83,129 @@ async function fetchPerformers() {
   _performers = await $get('/api/performers');
 }
 
+/* ══════════════════ TIME MACHINE ══════════════════ */
+function initTimeMachine() {
+  const slider = document.getElementById('tm-slider');
+  const playBtn = document.getElementById('tm-play-btn');
+  
+  if (slider) {
+    slider.addEventListener('input', e => {
+      const val = parseInt(e.target.value);
+      setDateFromSliderValue(val);
+    });
+  }
+  
+  if (playBtn) {
+    playBtn.addEventListener('click', () => {
+      _tmIsPlaying = !_tmIsPlaying;
+      playBtn.textContent = _tmIsPlaying ? '⏸' : '▶';
+      playBtn.classList.toggle('playing', _tmIsPlaying);
+      if (_tmIsPlaying) {
+        startTimeMachineLoop();
+      } else {
+        if (_tmInterval) clearInterval(_tmInterval);
+      }
+    });
+  }
+  
+  updateTimeMachineUI();
+}
+
+function setDateFromSliderValue(val) {
+  const baseDate = new Date('2026-06-11T12:00:00Z');
+  baseDate.setUTCDate(baseDate.getUTCDate() + val);
+  _simulatedDate = baseDate;
+  updateTimeMachineUI();
+  triggerTimeRefresh();
+}
+
+function updateTimeMachineUI() {
+  const clock = document.getElementById('tm-clock');
+  if (clock) {
+    clock.textContent = _simulatedDate.toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC'
+    }) + ' ' + _simulatedDate.toLocaleTimeString('en-US', {
+      hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'UTC'
+    }) + ' UTC';
+  }
+}
+
+function startTimeMachineLoop() {
+  if (_tmInterval) clearInterval(_tmInterval);
+  _tmInterval = setInterval(() => {
+    // Advance simulated time by 2 hours
+    _simulatedDate.setUTCHours(_simulatedDate.getUTCHours() + 2);
+    
+    // Check if we hit the end of the tournament (July 20)
+    const endTourney = new Date('2026-07-20T00:00:00Z');
+    if (_simulatedDate >= endTourney) {
+      _simulatedDate = endTourney;
+      _tmIsPlaying = false;
+      const playBtn = document.getElementById('tm-play-btn');
+      if (playBtn) playBtn.textContent = '▶';
+      clearInterval(_tmInterval);
+    }
+    
+    // Sync slider value
+    const base = new Date('2026-06-11T12:00:00Z');
+    const diffDays = Math.floor((_simulatedDate - base) / (24 * 60 * 60 * 1000));
+    const slider = document.getElementById('tm-slider');
+    if (slider) {
+      slider.value = Math.max(0, Math.min(38, diffDays));
+    }
+    
+    updateTimeMachineUI();
+    triggerTimeRefresh(false);
+  }, 2000);
+}
+
+async function triggerTimeRefresh(fullRedraw = true) {
+  // Re-fetch standing, performers
+  await Promise.all([
+    fetchGroups(), fetchPerformers()
+  ]);
+  
+  const tagline = document.getElementById('overview-tagline');
+  if (tagline) {
+    tagline.textContent = `Live results & stats as of ${_simulatedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })} — Group Stage in progress`;
+  }
+  
+  const activeTabBtn = document.querySelector('.nav-btn.active');
+  const activeTab = activeTabBtn ? activeTabBtn.dataset.tab : 'overview';
+  
+  if (activeTab === 'overview') {
+    await refreshOverviewTab();
+  } else if (activeTab === 'groups') {
+    initGroupsTab();
+  } else if (activeTab === 'teams') {
+    const selectedTeamItem = document.querySelector('.team-list-item.selected');
+    if (selectedTeamItem) {
+      loadTeamProfile(selectedTeamItem.dataset.team);
+    }
+  } else if (activeTab === 'journey') {
+    const sel = document.getElementById('journey-team-select');
+    if (sel && sel.value) {
+      runJourney(sel.value);
+    }
+  }
+}
+
 /* ══════════════════ NAVIGATION ══════════════════ */
 function initNav() {
   document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      
+      await triggerTimeRefresh(true);
     });
   });
 }
 
 /* ══════════════════ TAB 1: OVERVIEW ══════════════════ */
-async function initOverview() {
+async function refreshOverviewTab() {
   // Load played fixtures for KPIs
   const d = await $get('/api/fixtures?played=true');
   _fixtures = d.fixtures || [];
@@ -68,28 +218,65 @@ async function initOverview() {
   document.getElementById('kpi-goals').textContent = totalGoals;
   document.getElementById('kpi-gpg').textContent = gpg;
 
-  // Top scorer from performers
+  // Top performers from performers
   if (_performers.goals?.length) {
     const ts = _performers.goals[0];
     document.getElementById('kpi-top-scorer').textContent = ts.player_name.split(' ').pop() + ' (' + ts.goals + '⚽)';
+  } else {
+    document.getElementById('kpi-top-scorer').textContent = '--';
   }
   if (_performers.assists?.length) {
     const ta = _performers.assists[0];
     document.getElementById('kpi-top-asst').textContent = ta.player_name.split(' ').pop() + ' (' + ta.assists + '🎯)';
+  } else {
+    document.getElementById('kpi-top-asst').textContent = '--';
   }
   if (_performers.rating?.length) {
     const tr = _performers.rating[0];
     document.getElementById('kpi-top-rated').textContent = tr.player_name.split(' ').pop() + ' (' + tr.rating + '★)';
+  } else {
+    document.getElementById('kpi-top-rated').textContent = '--';
   }
 
-  // Date-filtered fixtures
+  // Date-filtered fixtures list (synced to the current simulated date)
+  const dateStr = _simulatedDate.toISOString().split('T')[0];
   const dateInput = document.getElementById('date-filter');
-  const renderFixtures = async (date) => {
-    const data = await $get('/api/fixtures?date=' + date);
-    renderFixtureList(data.fixtures || [], document.getElementById('today-fixtures'));
-  };
-  dateInput.addEventListener('change', e => renderFixtures(e.target.value));
-  await renderFixtures('2026-06-15');
+  if (dateInput) {
+    dateInput.value = dateStr;
+  }
+  
+  const todayData = await $get('/api/fixtures?date=' + dateStr);
+  renderFixtureList(todayData.fixtures || [], document.getElementById('today-fixtures'));
+
+  // Live match center update
+  updateLiveMonitor(todayData.fixtures || []);
+
+  // Goals by Group chart
+  drawGoalsByGroupChart();
+}
+
+async function initOverview() {
+  const dateInput = document.getElementById('date-filter');
+  if (dateInput) {
+    dateInput.addEventListener('change', async (e) => {
+      // Offset simulated time to the selected date
+      const selectedDate = e.target.value;
+      const hours = _simulatedDate.getUTCHours();
+      const mins = _simulatedDate.getUTCMinutes();
+      const nextDt = new Date(`${selectedDate}T${String(hours).padStart(2,'0')}:${String(mins).padStart(2,'0')}:00Z`);
+      
+      const base = new Date('2026-06-11T12:00:00Z');
+      const diffDays = Math.floor((nextDt - base) / (24 * 60 * 60 * 1000));
+      const slider = document.getElementById('tm-slider');
+      if (slider) {
+        slider.value = Math.max(0, Math.min(38, diffDays));
+      }
+      
+      _simulatedDate = nextDt;
+      updateTimeMachineUI();
+      await triggerTimeRefresh();
+    });
+  }
 
   // Performers list
   renderPerformers('goals');
@@ -101,8 +288,195 @@ async function initOverview() {
     });
   });
 
-  // Goals by Group chart
-  drawGoalsByGroupChart();
+  await refreshOverviewTab();
+}
+
+function updateLiveMonitor(fixtures) {
+  const liveMatches = fixtures.filter(f => f.status === 'live');
+  const panel = document.getElementById('live-monitor-panel');
+  const grid = document.getElementById('live-monitor-grid');
+  
+  if (!liveMatches.length) {
+    panel.style.display = 'none';
+    grid.innerHTML = '';
+    Object.values(_commentaryIntervals).forEach(clearInterval);
+    _commentaryIntervals = {};
+    return;
+  }
+
+  panel.style.display = 'block';
+  document.getElementById('live-monitor-meta').textContent = `${liveMatches.length} Match${liveMatches.length > 1 ? 'es' : ''} Currently Playing`;
+
+  grid.innerHTML = liveMatches.map(m => {
+    const hFlag = getFlagUrl(m.home);
+    const aFlag = getFlagUrl(m.away);
+    return `
+      <div class="live-card" data-match-id="${m.id}">
+        <div class="live-card-header">
+          <span class="live-badge"><span class="live-dot pulse"></span> LIVE</span>
+          <span class="live-card-minute">${m.minute}'</span>
+        </div>
+        <div class="live-card-body">
+          <div class="live-team-col">
+            ${hFlag ? `<img class="live-team-flag" src="${hFlag}" alt="">` : ''}
+            <span class="live-team-name">${m.home}</span>
+          </div>
+          <span class="live-card-score">${m.home_score} – ${m.away_score}</span>
+          <div class="live-team-col">
+            ${aFlag ? `<img class="live-team-flag" src="${aFlag}" alt="">` : ''}
+            <span class="live-team-name">${m.away}</span>
+          </div>
+        </div>
+        <div class="live-commentary-terminal">
+          <div class="live-commentary-title">
+            <span>🔴 Live AI Commentary</span>
+            <span style="font-size: 8px; color: var(--text-2);">Llama 3.1</span>
+          </div>
+          <div id="live-commentary-${m.id}" style="line-height: 1.4;">
+            Commentary incoming...
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  grid.querySelectorAll('.live-card').forEach(card => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.live-commentary-terminal')) return;
+      openMatchCenter(card.dataset.matchId);
+    });
+  });
+
+  liveMatches.forEach(m => {
+    if (!_commentaryIntervals[m.id]) {
+      fetchLiveCommentary(m);
+      _commentaryIntervals[m.id] = setInterval(() => {
+        fetchLiveCommentary(m);
+      }, 15000);
+    }
+  });
+}
+
+async function fetchLiveCommentary(match) {
+  const commContainer = document.getElementById(`live-commentary-${match.id}`);
+  if (!commContainer) return;
+
+  const statsRes = await $get(`/api/match/${match.id}`);
+  const res = await $post('/api/ai/live-commentary', {
+    matchId: match.id,
+    home: match.home,
+    away: match.away,
+    score: `${match.home_score}-${match.away_score}`,
+    scorers: match.scorers,
+    minute: match.minute,
+    stats: statsRes.stats
+  });
+
+  if (res.commentary) {
+    commContainer.innerHTML = `<span style="color:var(--accent); font-weight:700;">[${match.minute}']</span> ${res.commentary}`;
+  }
+}
+
+async function openMatchCenter(matchId) {
+  const modal = document.getElementById('match-modal');
+  const content = document.getElementById('match-center-content');
+  
+  modal.style.display = 'flex';
+  content.innerHTML = '<div style="text-align:center; padding:40px;"><div class="spinner" style="margin:auto; width:28px; height:28px; border-width:3px; border-top-color:var(--accent)"></div></div>';
+
+  const res = await $get(`/api/match/${matchId}`);
+  if (res.error) {
+    content.innerHTML = `<div style="color:var(--red); text-align:center; padding:20px;">${res.error}</div>`;
+    return;
+  }
+
+  const { match, stats } = res;
+  const hFlag = getFlagUrl(match.home);
+  const aFlag = getFlagUrl(match.away);
+  
+  const dateStr = new Date(match.kickoff).toLocaleDateString('en-US', {
+    weekday: 'long', month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'
+  }) + ' UTC';
+
+  const homeScorers = match.scorers.filter(s => s.team === 'home');
+  const awayScorers = match.scorers.filter(s => s.team === 'away');
+
+  let scorersHtml = '';
+  if (match.scorers.length > 0) {
+    scorersHtml = `
+      <div class="match-modal-scorers-list">
+        <div>
+          ${homeScorers.map(s => `<div class="match-modal-scorer">⚽ ${s.name} (${s.min}'${s.assist ? `, assist: ${s.assist}` : ''})</div>`).join('')}
+        </div>
+        <div style="text-align: right;">
+          ${awayScorers.map(s => `<div class="match-modal-scorer away">(${s.min}'${s.assist ? `, assist: ${s.assist}` : ''}) ${s.name} ⚽</div>`).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  const statRow = (name, hVal, aVal, isPct = false) => {
+    let hWidth = 50;
+    let aWidth = 50;
+    if (hVal + aVal > 0) {
+      hWidth = (hVal / (hVal + aVal)) * 100;
+      aWidth = (aVal / (hVal + aVal)) * 100;
+    }
+    return `
+      <div class="match-stat-row">
+        <div class="match-stat-labels">
+          <span>${hVal}${isPct ? '%' : ''}</span>
+          <span class="match-stat-label-name">${name}</span>
+          <span>${aVal}${isPct ? '%' : ''}</span>
+        </div>
+        <div class="match-stat-bar-container">
+          <div class="match-stat-bar-home" style="width: ${hWidth}%"></div>
+          <div class="match-stat-bar-away" style="width: ${aWidth}%"></div>
+        </div>
+      </div>
+    `;
+  };
+
+  content.innerHTML = `
+    <div style="font-size:11px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px; text-align:center;">
+      ${match.stage} · ${match.stadium}, ${match.city}
+    </div>
+    
+    <div class="match-modal-header-row">
+      <div class="match-modal-team">
+        ${hFlag ? `<img src="${hFlag}" alt="">` : ''}
+        <span>${match.home}</span>
+      </div>
+      <div class="match-modal-score">
+        ${match.is_played ? `${match.home_score} – ${match.away_score}` : 'VS'}
+      </div>
+      <div class="match-modal-team">
+        ${aFlag ? `<img src="${aFlag}" alt="">` : ''}
+        <span>${match.away}</span>
+      </div>
+    </div>
+    
+    <div style="text-align:center; font-size:11px; color:var(--text-2); margin-top:-10px; margin-bottom:15px;">
+      ${match.status === 'live' ? `<span class="live-badge" style="display:inline-block;"><span class="live-dot pulse"></span> LIVE · ${match.minute}'</span>` : dateStr}
+    </div>
+
+    ${scorersHtml}
+
+    <div class="match-modal-tabs" style="margin-top: 20px;">
+      <button class="match-modal-tab active">Statistics</button>
+    </div>
+
+    <div class="match-stats-grid">
+      ${statRow('Possession', stats.possession.home, stats.possession.away, true)}
+      ${statRow('Total Shots', stats.shots.home, stats.shots.away)}
+      ${statRow('Shots on Target', stats.shots_on_target.home, stats.shots_on_target.away)}
+      ${statRow('Passes Completed', stats.passes.home, stats.passes.away)}
+      ${statRow('Pass Accuracy', stats.pass_accuracy.home, stats.pass_accuracy.away, true)}
+      ${statRow('Fouls committed', stats.fouls.home, stats.fouls.away)}
+      ${statRow('Yellow Cards', stats.yellow_cards.home, stats.yellow_cards.away)}
+      ${statRow('Red Cards', stats.red_cards.home, stats.red_cards.away)}
+    </div>
+  `;
 }
 
 function renderFixtureList(fixtures, container) {
@@ -113,16 +487,22 @@ function renderFixtureList(fixtures, container) {
   container.innerHTML = fixtures.map(f => {
     const hFlag = getFlagUrl(f.home);
     const aFlag = getFlagUrl(f.away);
+    
+    let statusBadge = '';
+    if (f.status === 'live') {
+      statusBadge = `<span class="live-badge" style="padding:1px 6px; font-size:8px; margin-left:6px;"><span class="live-dot pulse"></span> ${f.minute}'</span>`;
+    }
+    
     const scoreHtml = f.is_played
       ? `<div class="fix-score">${f.home_score} – ${f.away_score}</div>`
       : `<div class="fix-score upcoming">vs</div>`;
     const scorers = f.scorers?.length
-      ? `<div style="font-size:10px;color:var(--text-2);margin-top:4px">${f.scorers.map(s=>`${s.player_name} ${s.goals}⚽`).join(', ')}</div>`
+      ? `<div style="font-size:10px;color:var(--text-2);margin-top:4px">${f.scorers.map(s=>`${s.name} ${s.min}'`).join(', ')}</div>`
       : '';
     return `
-      <div class="fixture-item">
+      <div class="fixture-item" data-match-id="${f.id}">
         <div>
-          <div class="fix-stage">${f.stage}</div>
+          <div class="fix-stage" style="display:flex; align-items:center;">${f.stage} ${statusBadge}</div>
           <div style="font-size:10px;color:var(--text-2);margin-top:3px">${f.stadium || ''}</div>
         </div>
         <div class="fix-teams">
@@ -134,7 +514,7 @@ function renderFixtureList(fixtures, container) {
         </div>
         <div class="fix-meta">${f.city || ''}</div>
       </div>
-      ${scorers ? `<div style="padding:0 8px 6px;font-size:10px;color:var(--text-2)">${f.scorers?.map(s=>`${s.player_name} ×${s.goals}`).join(' · ')}</div>` : ''}
+      ${scorers ? `<div style="padding:0 8px 6px;font-size:10px;color:var(--text-2)">${f.scorers?.map(s=>`${s.name} ×${s.min}'`).join(' · ')}</div>` : ''}
     `;
   }).join('');
 }
@@ -490,7 +870,7 @@ function renderTeamFixtures(container, played, upcoming) {
     const flag = getFlagUrl(f.opponent);
     const resultColor = f.result === 'W' ? 'var(--green)' : f.result === 'D' ? 'var(--gold)' : 'var(--red)';
     return `
-      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border);font-size:12px">
+      <div class="fixture-item" data-match-id="${f.id}" style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border);font-size:12px">
         <span style="color:var(--text-2);min-width:80px">${f.date}</span>
         ${flag ? `<img style="width:18px;height:12px;border-radius:2px;object-fit:cover" src="${flag}" alt="" onerror="this.style.display='none'">` : ''}
         <span style="flex:1;font-weight:600">vs ${f.opponent}</span>
@@ -926,7 +1306,7 @@ async function runJourney(teamName) {
 
   // Group matches
   const groupMatchesHtml = data.group_matches.map(m => `
-    <div class="jrn-match">
+    <div class="jrn-match" data-match-id="${m.id}">
       <span style="color:var(--text-2);font-size:11px;min-width:80px">${m.date}</span>
       <span style="flex:1">vs <strong>${m.opponent}</strong></span>
       ${m.is_played

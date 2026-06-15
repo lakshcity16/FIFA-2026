@@ -35,7 +35,15 @@
       <button class="nav-btn" data-tab="auction">Draft Auction</button>
       <button class="nav-btn" data-tab="journey">Journey Sim</button>
     </nav>
-    <div class="hdr-live"><span class="live-dot"></span> LIVE · Jun 15, 2026</div>
+    <!-- Tournament Time Machine Widget -->
+    <div class="hdr-time-machine" id="time-machine">
+      <button id="tm-play-btn" class="tm-btn" title="Toggle Auto-Play Time">▶</button>
+      <div class="tm-clock-wrap">
+        <span class="tm-clock-display" id="tm-clock">June 15, 2026 12:00 PM UTC</span>
+        <input type="range" id="tm-slider" min="0" max="38" value="4" class="tm-slider" title="Drag to change tournament day">
+      </div>
+      <span class="tm-speed-badge" id="tm-speed">1x</span>
+    </div>
   </div>
 </header>
 
@@ -47,7 +55,20 @@
 <section id="tab-overview" class="tab active">
   <div class="page-title">
     <h1>Tournament Overview</h1>
-    <p>Live results & stats as of June 15, 2026 — Group Stage in progress</p>
+    <p id="overview-tagline">Live results & stats as of June 15, 2026 — Group Stage in progress</p>
+  </div>
+
+  <!-- Live Monitor Panel -->
+  <div id="live-monitor-panel" class="panel live-monitor-panel" style="display:none; margin-bottom:24px;">
+    <div class="panel-header">
+      <h3 style="color:var(--accent); display:flex; align-items:center; gap:8px;">
+        <span class="live-dot pulse"></span> LIVE MATCH CENTER
+      </h3>
+      <span class="live-match-meta" id="live-monitor-meta">Active Matches</span>
+    </div>
+    <div class="live-monitor-grid" id="live-monitor-grid">
+      <!-- Live match trackers loaded here -->
+    </div>
   </div>
 
   <!-- KPI Bar -->
@@ -324,6 +345,19 @@
 </section>
 
 </main>
+
+<!-- Match Center Modal -->
+<div id="match-modal" class="modal" style="display:none">
+  <div class="modal-box match-modal-box">
+    <div class="modal-header">
+      <h3>🏟️ Match Center</h3>
+      <button id="close-match-modal" class="modal-close">&times;</button>
+    </div>
+    <div id="match-center-content">
+      <!-- Loaded dynamically via API -->
+    </div>
+  </div>
+</div>
 
 <script src="app.js"></script>
 </body>
