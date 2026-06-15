@@ -844,3 +844,175 @@ input[type="date"]:focus{border-color:var(--accent)}
   font-weight: 500;
 }
 
+/* ── Auction Timer Visuals ────────────────────────────────── */
+.auction-timer-wrap {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.auction-timer-bar {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, var(--accent-2), var(--accent-3));
+  transition: width 0.1s linear, background-color 0.2s ease;
+}
+.auction-timer-text {
+  position: absolute;
+  right: 8px;
+  font-size: 8px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  pointer-events: none;
+}
+
+/* ── Football Pitch Visuals ───────────────────────────────── */
+.pitch-container {
+  position: relative;
+  width: 100%;
+  height: 440px;
+  background: radial-gradient(circle at center, rgba(16, 185, 129, 0.1) 0%, rgba(7, 11, 20, 0.95) 100%);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-top: 10px;
+  overflow: hidden;
+  box-shadow: inset 0 0 40px rgba(16, 185, 129, 0.05);
+}
+.pitch-line {
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+}
+.pitch-outline {
+  inset: 12px;
+  border-radius: 6px;
+  border-width: 1px;
+}
+.pitch-center-line {
+  left: 12px;
+  right: 12px;
+  top: 50%;
+  height: 0;
+}
+.pitch-center-circle {
+  left: 50%;
+  top: 50%;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+.pitch-penalty-box {
+  left: 50%;
+  width: 140px;
+  height: 50px;
+  transform: translateX(-50%);
+}
+.pitch-penalty-box.top {
+  top: 12px;
+  border-top: none;
+}
+.pitch-penalty-box.bottom {
+  bottom: 12px;
+  border-bottom: none;
+}
+
+/* Position Slots */
+.pitch-slot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 62px;
+  height: 50px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 4px;
+}
+.pitch-slot:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--accent-2);
+  transform: translate(-50%, -50%) scale(1.05);
+}
+.pitch-slot.filled {
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(59, 130, 246, 0.06));
+  border: 1px solid var(--accent-2);
+  box-shadow: 0 4px 12px rgba(34, 211, 238, 0.15);
+}
+.pitch-slot.filled:hover {
+  box-shadow: 0 4px 18px rgba(34, 211, 238, 0.35);
+  border-color: #fff;
+}
+.slot-pos-label {
+  font-size: 8px;
+  font-weight: 800;
+  color: var(--text-2);
+  letter-spacing: 0.5px;
+}
+.slot-player-name {
+  font-size: 8px;
+  font-weight: 700;
+  color: #fff;
+  text-align: center;
+  max-width: 54px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+.slot-player-cp {
+  font-size: 7px;
+  font-weight: 800;
+  color: var(--gold);
+  margin-top: 1px;
+}
+
+/* Bench styles */
+.subs-bench-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 14px;
+  margin-bottom: 6px;
+}
+.subs-bench-grid {
+  display: flex;
+  gap: 6px;
+  justify-content: space-between;
+}
+.sub-slot {
+  flex: 1;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  padding: 4px;
+}
+.sub-slot.filled {
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.12), rgba(59, 130, 246, 0.06));
+  border: 1px solid var(--accent-3);
+  box-shadow: 0 4px 10px rgba(167, 139, 250, 0.15);
+}
+.sub-slot.filled .slot-pos-label {
+  color: var(--accent-3);
+}
+.sub-slot.filled:hover {
+  border-color: #fff;
+}
+

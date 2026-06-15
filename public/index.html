@@ -228,6 +228,11 @@
     <!-- Centre: Current player card -->
     <div class="auction-centre">
       <div class="current-player-card" id="cur-player-card">
+        <!-- Auction Timer -->
+        <div class="auction-timer-wrap">
+          <div class="auction-timer-bar" id="auction-timer-bar" style="width: 100%;"></div>
+          <span class="auction-timer-text" id="auction-timer-text">10s</span>
+        </div>
         <div class="cur-pos" id="cur-pos">FWD</div>
         <div class="cur-tier" id="cur-tier">Elite</div>
         <h2 id="cur-name">Loading...</h2>
@@ -266,7 +271,97 @@
       <div class="budget-bar-wrap">
         <div class="budget-bar-fill user" id="user-bar" style="width:100%"></div>
       </div>
-      <div id="user-roster" class="roster-list"></div>
+      <div class="pitch-container" id="user-pitch">
+        <div class="pitch-line pitch-outline"></div>
+        <div class="pitch-line pitch-center-line"></div>
+        <div class="pitch-line pitch-center-circle"></div>
+        <div class="pitch-line pitch-penalty-box top"></div>
+        <div class="pitch-line pitch-penalty-box bottom"></div>
+        
+        <!-- Starter Slots -->
+        <div class="pitch-slot" style="bottom: 5%; left: 50%;" data-slot="GK">
+          <span class="slot-pos-label">GK</span>
+          <span class="slot-player-name">—</span>
+          <span class="slot-player-cp"></span>
+        </div>
+        
+        <div class="pitch-slot" style="bottom: 25%; left: 15%;" data-slot="LB">
+          <span class="slot-pos-label">LB</span>
+          <span class="slot-player-name">—</span>
+          <span class="slot-player-cp"></span>
+        </div>
+        <div class="pitch-slot" style="bottom: 20%; left: 38%;" data-slot="LCB">
+          <span class="slot-pos-label">LCB</span>
+          <span class="slot-player-name">—</span>
+          <span class="slot-player-cp"></span>
+        </div>
+        <div class="pitch-slot" style="bottom: 20%; left: 62%;" data-slot="RCB">
+          <span class="slot-pos-label">RCB</span>
+          <span class="slot-player-name">—</span>
+          <span class="slot-player-cp"></span>
+        </div>
+        <div class="pitch-slot" style="bottom: 25%; left: 85%;" data-slot="RB">
+          <span class="slot-pos-label">RB</span>
+          <span class="slot-player-name">—</span>
+          <span class="slot-player-cp"></span>
+        </div>
+        
+        <div class="pitch-slot" style="bottom: 50%; left: 25%;" data-slot="LCM">
+          <span class="slot-pos-label">LCM</span>
+          <span class="slot-player-name">—</span>
+          <span class="slot-player-cp"></span>
+        </div>
+        <div class="pitch-slot" style="bottom: 45%; left: 50%;" data-slot="CM">
+          <span class="slot-pos-label">CM</span>
+          <span class="slot-player-name">—</span>
+          <span class="slot-player-cp"></span>
+        </div>
+        <div class="pitch-slot" style="bottom: 50%; left: 75%;" data-slot="RCM">
+          <span class="slot-pos-label">RCM</span>
+          <span class="slot-player-name">—</span>
+          <span class="slot-player-cp"></span>
+        </div>
+        
+        <div class="pitch-slot" style="bottom: 75%; left: 20%;" data-slot="LW">
+          <span class="slot-pos-label">LW</span>
+          <span class="slot-player-name">—</span>
+          <span class="slot-player-cp"></span>
+        </div>
+        <div class="pitch-slot" style="bottom: 82%; left: 50%;" data-slot="ST">
+          <span class="slot-pos-label">ST</span>
+          <span class="slot-player-name">—</span>
+          <span class="slot-player-cp"></span>
+        </div>
+        <div class="pitch-slot" style="bottom: 75%; left: 80%;" data-slot="RW">
+          <span class="slot-pos-label">RW</span>
+          <span class="slot-player-name">—</span>
+          <span class="slot-player-cp"></span>
+        </div>
+      </div>
+      
+      <div class="subs-bench-title">Substitutes Bench</div>
+      <div class="subs-bench-grid">
+        <div class="sub-slot" data-slot="SUB1">
+          <span class="slot-pos-label">SUB</span>
+          <span class="slot-player-name">—</span>
+          <span class="slot-player-cp"></span>
+        </div>
+        <div class="sub-slot" data-slot="SUB2">
+          <span class="slot-pos-label">SUB</span>
+          <span class="slot-player-name">—</span>
+          <span class="slot-player-cp"></span>
+        </div>
+        <div class="sub-slot" data-slot="SUB3">
+          <span class="slot-pos-label">SUB</span>
+          <span class="slot-player-name">—</span>
+          <span class="slot-player-cp"></span>
+        </div>
+        <div class="sub-slot" data-slot="SUB4">
+          <span class="slot-pos-label">SUB</span>
+          <span class="slot-player-name">—</span>
+          <span class="slot-player-cp"></span>
+        </div>
+      </div>
     </div>
 
     <!-- Right: AI squad -->

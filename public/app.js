@@ -196,6 +196,10 @@ async function triggerTimeRefresh(fullRedraw = true) {
 function initNav() {
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
+      if (btn.dataset.tab !== 'auction' && _auctionTimer) {
+        clearInterval(_auctionTimer);
+        _auctionTimer = null;
+      }
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       btn.classList.add('active');
@@ -1024,6 +1028,8 @@ let _userBudget = 120, _aiBudget = 120;
 let _userSquad = [], _aiSquad = [];
 let _curBid = 1, _curHolder = null; // starts at 1 CP
 let _curPlayer = null;
+let _auctionTimer = null;
+let _auctionSecondsLeft = 10;
 
 function initAuction() {
   document.getElementById('start-auction-btn').addEventListener('click', startAuction);
@@ -1047,7 +1053,11 @@ async function startAuction() {
   document.getElementById('auction-board').style.display = 'grid';
   document.getElementById('sim-ready').style.display = 'none';
 
+  // Clear AI roster list visual
+  document.getElementById('ai-roster').innerHTML = '';
+
   updateBudgetDisplays();
+  updatePitchView();
   nextPlayer();
 }
 
@@ -1087,6 +1097,8 @@ function nextPlayer() {
   document.getElementById('btn-raise').disabled = false;
   document.getElementById('btn-pass').disabled = false;
 
+  resetAuctionTimer();
+
   // AI auto-bids after short delay if it wants this player
   setTimeout(aiDecide, 800);
 }
@@ -1106,6 +1118,7 @@ function aiDecide() {
       _aiBudget -= 0; // Deducted only on win
       updateBidDisplay();
       logBid(`AI bids ${_curBid} CP`, 'ai');
+      resetAuctionTimer();
     }
   }
 }
@@ -1121,6 +1134,7 @@ function userRaise() {
   _curHolder = 'user';
   updateBidDisplay();
   logBid(`You bid ${_curBid} CP`, 'user');
+  resetAuctionTimer();
 
   // AI counter after delay
   setTimeout(() => {
@@ -1133,11 +1147,13 @@ function userRaise() {
       _curHolder = 'ai';
       updateBidDisplay();
       logBid(`AI raises to ${_curBid} CP`, 'ai');
+      resetAuctionTimer();
     }
   }, 700);
 }
 
 function userPass() {
+  if (_auctionTimer) clearInterval(_auctionTimer);
   // User passes → if AI is holder, AI wins; if no holder, draw next
   if (_curHolder === 'user') {
     // User was winning, now passes — AI gets at current price
@@ -1153,11 +1169,13 @@ function userPass() {
 }
 
 function skipPlayer() {
+  if (_auctionTimer) clearInterval(_auctionTimer);
   logBid('Player skipped — drawing next...', 'neutral');
   nextPlayer();
 }
 
 function awardPlayer(winner) {
+  if (_auctionTimer) clearInterval(_auctionTimer);
   const price = _curBid;
   const p = { ..._curPlayer, paid_cp: price };
 
@@ -1165,7 +1183,7 @@ function awardPlayer(winner) {
     _userBudget -= price;
     _userSquad.push(p);
     logBid(`✅ You win ${_curPlayer.name} for ${price} CP!`, 'user');
-    addToRoster('user-roster', p);
+    updatePitchView();
   } else {
     _aiBudget -= price;
     _aiSquad.push(p);
@@ -1230,6 +1248,7 @@ function getNeededPositions(squad) {
 }
 
 function endAuction() {
+  if (_auctionTimer) clearInterval(_auctionTimer);
   logBid('🏁 Draft complete!', 'neutral');
   document.getElementById('btn-raise').disabled = true;
   document.getElementById('btn-pass').disabled = true;
@@ -1522,4 +1541,116 @@ async function fetchRealLiveData() {
     console.error('Failed to fetch real live data:', err);
     listContainer.innerHTML = '<div style="grid-column: 1/-1; color:var(--red); font-size:13px; padding:40px; text-align:center">Error loading live feed data. Please try again.</div>';
   }
+}
+
+/* ══════════════════ AUCTION TIMERS & PITCH ══════════════════ */
+function resetAuctionTimer() {
+  if (_auctionTimer) clearInterval(_auctionTimer);
+  _auctionSecondsLeft = 10;
+  updateTimerUI();
+
+  _auctionTimer = setInterval(() => {
+    _auctionSecondsLeft -= 0.1;
+    if (_auctionSecondsLeft <= 0) {
+      _auctionSecondsLeft = 0;
+      clearInterval(_auctionTimer);
+      handleAuctionTimeout();
+    }
+    updateTimerUI();
+  }, 100);
+}
+
+function updateTimerUI() {
+  const bar = document.getElementById('auction-timer-bar');
+  const text = document.getElementById('auction-timer-text');
+  if (bar) {
+    bar.style.width = Math.max(0, (_auctionSecondsLeft / 10) * 100) + '%';
+    if (_auctionSecondsLeft < 3) {
+      bar.style.background = 'var(--red)';
+    } else if (_auctionSecondsLeft < 6) {
+      bar.style.background = 'var(--orange)';
+    } else {
+      bar.style.background = 'linear-gradient(90deg, var(--accent-2), var(--accent-3))';
+    }
+  }
+  if (text) {
+    text.textContent = Math.ceil(_auctionSecondsLeft) + 's';
+  }
+}
+
+function handleAuctionTimeout() {
+  logBid(`⏰ Time expired!`, 'neutral');
+  if (_curHolder === 'user') {
+    awardPlayer('user');
+  } else if (_curHolder === 'ai') {
+    awardPlayer('ai');
+  } else {
+    logBid(`Nobody bid for ${_curPlayer.name} — drawing next...`, 'neutral');
+    nextPlayer();
+  }
+}
+
+function updatePitchView() {
+  // Reset all slots
+  const slots = document.querySelectorAll('#user-pitch .pitch-slot, .subs-bench-grid .sub-slot');
+  slots.forEach(slot => {
+    slot.classList.remove('filled');
+    const nameEl = slot.querySelector('.slot-player-name');
+    const cpEl = slot.querySelector('.slot-player-cp');
+    if (nameEl) nameEl.textContent = '—';
+    if (cpEl) cpEl.textContent = '';
+  });
+
+  // Position filling state
+  const filledSlots = {
+    GK: false,
+    LB: false, LCB: false, RCB: false, RB: false,
+    LCM: false, CM: false, RCM: false,
+    LW: false, ST: false, RW: false,
+    SUB1: false, SUB2: false, SUB3: false, SUB4: false
+  };
+
+  _userSquad.forEach(p => {
+    let targetSlot = null;
+    const pos = p.position; // Goalkeeper, Defender, Midfielder, Forward
+
+    if (pos === 'Goalkeeper') {
+      if (!filledSlots.GK) targetSlot = 'GK';
+    } else if (pos === 'Defender') {
+      if (!filledSlots.LB) targetSlot = 'LB';
+      else if (!filledSlots.LCB) targetSlot = 'LCB';
+      else if (!filledSlots.RCB) targetSlot = 'RCB';
+      else if (!filledSlots.RB) targetSlot = 'RB';
+    } else if (pos === 'Midfielder') {
+      if (!filledSlots.LCM) targetSlot = 'LCM';
+      else if (!filledSlots.CM) targetSlot = 'CM';
+      else if (!filledSlots.RCM) targetSlot = 'RCM';
+    } else if (pos === 'Forward') {
+      if (!filledSlots.LW) targetSlot = 'LW';
+      else if (!filledSlots.ST) targetSlot = 'ST';
+      else if (!filledSlots.RW) targetSlot = 'RW';
+    }
+
+    // If starting slots are full, place in subs
+    if (!targetSlot) {
+      if (!filledSlots.SUB1) targetSlot = 'SUB1';
+      else if (!filledSlots.SUB2) targetSlot = 'SUB2';
+      else if (!filledSlots.SUB3) targetSlot = 'SUB3';
+      else if (!filledSlots.SUB4) targetSlot = 'SUB4';
+    }
+
+    if (targetSlot) {
+      filledSlots[targetSlot] = true;
+      const slotEl = document.querySelector(`[data-slot="${targetSlot}"]`);
+      if (slotEl) {
+        slotEl.classList.add('filled');
+        const nameEl = slotEl.querySelector('.slot-player-name');
+        const cpEl = slotEl.querySelector('.slot-player-cp');
+        
+        const shortName = p.name.split(' ').pop();
+        if (nameEl) nameEl.textContent = `${shortName} (${p.rating})`;
+        if (cpEl) cpEl.textContent = `${p.paid_cp} CP`;
+      }
+    }
+  });
 }
