@@ -1062,7 +1062,7 @@ async function startAuction() {
 }
 
 function nextPlayer() {
-  const totalNeeded = 15;
+  const totalNeeded = 11;
   const userDone = _userSquad.length >= totalNeeded;
   const aiDone = _aiSquad.length >= totalNeeded;
 
@@ -1079,9 +1079,9 @@ function nextPlayer() {
   _curHolder = null;
 
   // Display player card
-  const posCode = _curPlayer.position === 'Goalkeeper' ? 'GK' : _curPlayer.position === 'Defender' ? 'DEF' : _curPlayer.position === 'Midfielder' ? 'MID' : 'FWD';
-  document.getElementById('cur-pos').textContent = posCode;
-  document.getElementById('cur-pos').className = 'cur-pos pos-badge pos-' + posCode;
+  const groupPos = ['GK'].includes(_curPlayer.position) ? 'GK' : ['LB', 'LCB', 'RCB', 'RB'].includes(_curPlayer.position) ? 'DEF' : ['CDM', 'CM', 'CAM'].includes(_curPlayer.position) ? 'MID' : 'FWD';
+  document.getElementById('cur-pos').textContent = _curPlayer.position;
+  document.getElementById('cur-pos').className = 'cur-pos pos-badge pos-' + groupPos;
   document.getElementById('cur-tier').textContent = _curPlayer.tier || '';
   document.getElementById('cur-name').textContent = _curPlayer.name;
   document.getElementById('cur-team').textContent = _curPlayer.team;
@@ -1093,29 +1093,40 @@ function nextPlayer() {
   clearBidLog();
   logBid(`Player drawn: ${_curPlayer.name} (${_curPlayer.team}) · Start: 1 CP`, 'neutral');
 
-  // Enable buttons
-  document.getElementById('btn-raise').disabled = false;
+  // Check if position already filled for user
+  const userHasPos = _userSquad.some(p => p.position === _curPlayer.position);
+  const raiseBtn = document.getElementById('btn-raise');
+  if (userHasPos) {
+    raiseBtn.disabled = true;
+    raiseBtn.textContent = `Position ${_curPlayer.position} Filled`;
+    raiseBtn.style.opacity = 0.5;
+  } else {
+    raiseBtn.disabled = false;
+    raiseBtn.textContent = "▲ Raise Bid (+1 CP)";
+    raiseBtn.style.opacity = 1;
+  }
+
+  // Enable pass button
   document.getElementById('btn-pass').disabled = false;
 
   resetAuctionTimer();
 
   // AI auto-bids after short delay if it wants this player
-  setTimeout(aiDecide, 800);
+  setTimeout(aiDecide, 350);
 }
 
 function aiDecide() {
-  if (_aiSquad.length >= 15) return;
-  const aiNeedPos = getNeededPositions(_aiSquad);
-  const wantsPlayer = aiNeedPos.includes(_curPlayer.position) && _aiBudget > _curBid;
+  if (_aiSquad.length >= 11) return;
+  const aiHasPos = _aiSquad.some(p => p.position === _curPlayer.position);
+  const wantsPlayer = !aiHasPos && _aiBudget > _curBid;
   const rating = _curPlayer.rating || 7;
 
   if (wantsPlayer) {
     // AI bids only if it can afford and player is good enough
-    const maxAIBid = Math.min(_aiBudget - (15 - _aiSquad.length - 1), Math.round((rating - 5) * 4 + 2));
+    const maxAIBid = Math.min(_aiBudget - (11 - _aiSquad.length - 1), Math.round((rating - 5) * 4 + 2));
     if (_curHolder !== 'ai' && _curBid <= maxAIBid) {
       _curBid += 1;
       _curHolder = 'ai';
-      _aiBudget -= 0; // Deducted only on win
       updateBidDisplay();
       logBid(`AI bids ${_curBid} CP`, 'ai');
       resetAuctionTimer();
@@ -1127,7 +1138,7 @@ function userRaise() {
   if (_userBudget <= _curBid) {
     logBid('Not enough budget!', 'neutral'); return;
   }
-  if (_userSquad.length >= 15) {
+  if (_userSquad.length >= 11) {
     logBid('Your squad is full!', 'neutral'); return;
   }
   _curBid += 1;
@@ -1138,18 +1149,17 @@ function userRaise() {
 
   // AI counter after delay
   setTimeout(() => {
-    if (_aiSquad.length >= 15) return;
-    const aiNeedPos = getNeededPositions(_aiSquad);
-    const wantsPlayer = aiNeedPos.includes(_curPlayer.position);
-    const maxAIBid = Math.min(_aiBudget - (15 - _aiSquad.length - 1), Math.round((_curPlayer.rating - 5) * 4 + 3));
-    if (wantsPlayer && _curBid < maxAIBid && _aiBudget > _curBid) {
+    if (_aiSquad.length >= 11) return;
+    const aiHasPos = _aiSquad.some(p => p.position === _curPlayer.position);
+    const maxAIBid = Math.min(_aiBudget - (11 - _aiSquad.length - 1), Math.round((_curPlayer.rating - 5) * 4 + 3));
+    if (!aiHasPos && _curBid < maxAIBid && _aiBudget > _curBid) {
       _curBid += 1;
       _curHolder = 'ai';
       updateBidDisplay();
       logBid(`AI raises to ${_curBid} CP`, 'ai');
       resetAuctionTimer();
     }
-  }, 700);
+  }, 300);
 }
 
 function userPass() {
@@ -1170,8 +1180,13 @@ function userPass() {
 
 function skipPlayer() {
   if (_auctionTimer) clearInterval(_auctionTimer);
-  logBid('Player skipped — drawing next...', 'neutral');
-  nextPlayer();
+  if (_curHolder === 'ai') {
+    logBid(`Skipped: awarding ${_curPlayer.name} to AI at ${_curBid} CP`, 'ai');
+    awardPlayer('ai');
+  } else {
+    logBid('Player skipped — drawing next...', 'neutral');
+    nextPlayer();
+  }
 }
 
 function awardPlayer(winner) {
@@ -1193,19 +1208,19 @@ function awardPlayer(winner) {
 
   updateBudgetDisplays();
 
-  const userDone = _userSquad.length >= 15;
-  const aiDone   = _aiSquad.length >= 15;
+  const userDone = _userSquad.length >= 11;
+  const aiDone   = _aiSquad.length >= 11;
   if (userDone && aiDone) { endAuction(); return; }
 
   setTimeout(nextPlayer, 1200);
 }
 
 function addToRoster(id, p) {
-  const posCode = p.position === 'Goalkeeper' ? 'GK' : p.position === 'Defender' ? 'DEF' : p.position === 'Midfielder' ? 'MID' : 'FWD';
+  const groupPos = ['GK'].includes(p.position) ? 'GK' : ['LB', 'LCB', 'RCB', 'RB'].includes(p.position) ? 'DEF' : ['CDM', 'CM', 'CAM'].includes(p.position) ? 'MID' : 'FWD';
   const div = document.createElement('div');
   div.className = 'roster-item';
   div.innerHTML = `
-    <span class="ri-pos pos-badge pos-${posCode}">${posCode}</span>
+    <span class="ri-pos pos-badge pos-${groupPos}">${p.position}</span>
     <span class="ri-name">${p.name}</span>
     <span class="ri-cp">${p.paid_cp}CP</span>`;
   document.getElementById(id).appendChild(div);
@@ -1546,7 +1561,7 @@ async function fetchRealLiveData() {
 /* ══════════════════ AUCTION TIMERS & PITCH ══════════════════ */
 function resetAuctionTimer() {
   if (_auctionTimer) clearInterval(_auctionTimer);
-  _auctionSecondsLeft = 10;
+  _auctionSecondsLeft = 6;
   updateTimerUI();
 
   _auctionTimer = setInterval(() => {
@@ -1564,10 +1579,10 @@ function updateTimerUI() {
   const bar = document.getElementById('auction-timer-bar');
   const text = document.getElementById('auction-timer-text');
   if (bar) {
-    bar.style.width = Math.max(0, (_auctionSecondsLeft / 10) * 100) + '%';
-    if (_auctionSecondsLeft < 3) {
+    bar.style.width = Math.max(0, (_auctionSecondsLeft / 6) * 100) + '%';
+    if (_auctionSecondsLeft < 2) {
       bar.style.background = 'var(--red)';
-    } else if (_auctionSecondsLeft < 6) {
+    } else if (_auctionSecondsLeft < 4) {
       bar.style.background = 'var(--orange)';
     } else {
       bar.style.background = 'linear-gradient(90deg, var(--accent-2), var(--accent-3))';
@@ -1592,7 +1607,7 @@ function handleAuctionTimeout() {
 
 function updatePitchView() {
   // Reset all slots
-  const slots = document.querySelectorAll('#user-pitch .pitch-slot, .subs-bench-grid .sub-slot');
+  const slots = document.querySelectorAll('#user-pitch .pitch-slot');
   slots.forEach(slot => {
     slot.classList.remove('filled');
     const nameEl = slot.querySelector('.slot-player-name');
@@ -1601,56 +1616,20 @@ function updatePitchView() {
     if (cpEl) cpEl.textContent = '';
   });
 
-  // Position filling state
-  const filledSlots = {
-    GK: false,
-    LB: false, LCB: false, RCB: false, RB: false,
-    LCM: false, CM: false, RCM: false,
-    LW: false, ST: false, RW: false,
-    SUB1: false, SUB2: false, SUB3: false, SUB4: false
-  };
-
   _userSquad.forEach(p => {
-    let targetSlot = null;
-    const pos = p.position; // Goalkeeper, Defender, Midfielder, Forward
+    let targetSlot = p.position; // Specific position GK, LB, LCB, RCB, RB, CDM, CM, CAM, LW, RW, ST
+    if (targetSlot === 'CDM') targetSlot = 'LCM';
+    else if (targetSlot === 'CAM') targetSlot = 'RCM';
 
-    if (pos === 'Goalkeeper') {
-      if (!filledSlots.GK) targetSlot = 'GK';
-    } else if (pos === 'Defender') {
-      if (!filledSlots.LB) targetSlot = 'LB';
-      else if (!filledSlots.LCB) targetSlot = 'LCB';
-      else if (!filledSlots.RCB) targetSlot = 'RCB';
-      else if (!filledSlots.RB) targetSlot = 'RB';
-    } else if (pos === 'Midfielder') {
-      if (!filledSlots.LCM) targetSlot = 'LCM';
-      else if (!filledSlots.CM) targetSlot = 'CM';
-      else if (!filledSlots.RCM) targetSlot = 'RCM';
-    } else if (pos === 'Forward') {
-      if (!filledSlots.LW) targetSlot = 'LW';
-      else if (!filledSlots.ST) targetSlot = 'ST';
-      else if (!filledSlots.RW) targetSlot = 'RW';
-    }
-
-    // If starting slots are full, place in subs
-    if (!targetSlot) {
-      if (!filledSlots.SUB1) targetSlot = 'SUB1';
-      else if (!filledSlots.SUB2) targetSlot = 'SUB2';
-      else if (!filledSlots.SUB3) targetSlot = 'SUB3';
-      else if (!filledSlots.SUB4) targetSlot = 'SUB4';
-    }
-
-    if (targetSlot) {
-      filledSlots[targetSlot] = true;
-      const slotEl = document.querySelector(`[data-slot="${targetSlot}"]`);
-      if (slotEl) {
-        slotEl.classList.add('filled');
-        const nameEl = slotEl.querySelector('.slot-player-name');
-        const cpEl = slotEl.querySelector('.slot-player-cp');
-        
-        const shortName = p.name.split(' ').pop();
-        if (nameEl) nameEl.textContent = `${shortName} (${p.rating})`;
-        if (cpEl) cpEl.textContent = `${p.paid_cp} CP`;
-      }
+    const slotEl = document.querySelector(`[data-slot="${targetSlot}"]`);
+    if (slotEl) {
+      slotEl.classList.add('filled');
+      const nameEl = slotEl.querySelector('.slot-player-name');
+      const cpEl = slotEl.querySelector('.slot-player-cp');
+      
+      const shortName = p.name.split(' ').pop();
+      if (nameEl) nameEl.textContent = `${shortName} (${p.rating})`;
+      if (cpEl) cpEl.textContent = `${p.paid_cp} CP`;
     }
   });
 }

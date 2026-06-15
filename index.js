@@ -729,21 +729,59 @@ Be specific, use the data provided, and sound like a Sky Sports analyst.`;
 
 // 9. Auction Pool — top players, start price = 1 CP always
 app.get('/api/auction/pool', (req, res) => {
-  const pool = [];
-  const POSITIONS = ['Goalkeeper','Defender','Midfielder','Forward'];
-  POSITIONS.forEach(pos => {
-    const byPos = [];
-    Object.entries(SQUADS).forEach(([team, squad]) => {
-      squad.filter(p => p.position === pos).forEach(p => {
-        byPos.push({ ...p, team,
-          base_cp: 1,
-          tier: p.rating >= 9 ? 'Elite' : p.rating >= 8 ? 'Star' : p.rating >= 7 ? 'Good' : 'Regular',
-          max_expected_cp: Math.max(1, Math.round((p.rating - 5) * 7))
-        });
-      });
+  const allPlayers = [];
+  Object.entries(SQUADS).forEach(([team, squad]) => {
+    squad.forEach(p => {
+      allPlayers.push({ ...p, team });
     });
-    byPos.sort((a,b) => b.rating - a.rating);
-    pool.push(...byPos.slice(0, 20));
+  });
+
+  const goalkeepers = allPlayers.filter(p => p.position === 'Goalkeeper').sort((a,b) => b.rating - a.rating);
+  const defenders = allPlayers.filter(p => p.position === 'Defender').sort((a,b) => b.rating - a.rating);
+  const midfielders = allPlayers.filter(p => p.position === 'Midfielder').sort((a,b) => b.rating - a.rating);
+  const forwards = allPlayers.filter(p => p.position === 'Forward').sort((a,b) => b.rating - a.rating);
+
+  const posMap = {
+    GK: [],
+    LB: [], LCB: [], RCB: [], RB: [],
+    CDM: [], CM: [], CAM: [],
+    LW: [], RW: [], ST: []
+  };
+
+  goalkeepers.forEach(p => {
+    p.specific_position = 'GK';
+    posMap.GK.push(p);
+  });
+
+  defenders.forEach((p, idx) => {
+    const subPos = ['LCB', 'RCB', 'LB', 'RB'][idx % 4];
+    p.specific_position = subPos;
+    posMap[subPos].push(p);
+  });
+
+  midfielders.forEach((p, idx) => {
+    const subPos = ['CM', 'CDM', 'CAM'][idx % 3];
+    p.specific_position = subPos;
+    posMap[subPos].push(p);
+  });
+
+  forwards.forEach((p, idx) => {
+    const subPos = ['ST', 'LW', 'RW'][idx % 3];
+    p.specific_position = subPos;
+    posMap[subPos].push(p);
+  });
+
+  const pool = [];
+  Object.entries(posMap).forEach(([posName, list]) => {
+    list.sort((a,b) => b.rating - a.rating);
+    const top5 = list.slice(0, 5).map(p => ({
+      ...p,
+      position: p.specific_position,
+      base_cp: 1,
+      tier: p.rating >= 9 ? 'Elite' : p.rating >= 8 ? 'Star' : p.rating >= 7 ? 'Good' : 'Regular',
+      max_expected_cp: Math.max(1, Math.round((p.rating - 5) * 7))
+    }));
+    pool.push(...top5);
   });
 
   for (let i = pool.length-1; i > 0; i--) {
