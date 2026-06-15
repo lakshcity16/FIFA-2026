@@ -1,523 +1,330 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FIFA World Cup 2026 Interactive AI Dashboard</title>
-    
-    <!-- Google Fonts: Outfit for a modern premium look -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    
-    <!-- Link CSS -->
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FIFA World Cup 2026 — AI Intelligence Hub</title>
+<meta name="description" content="FIFA WC 2026 AI-powered dashboard: live standings, team squads, match simulator, AI inference, 1v1 auction, journey predictor.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-    
-    <!-- Animated Neon Background Grid -->
-    <div class="bg-pattern"></div>
-    
-    <!-- Navigation Header -->
-    <header>
-        <div class="container header-content">
-            <a href="#" class="logo">
-                <span class="gold-logo">FIFA</span> <span class="neon-logo">2026</span> <span class="badge">AI INSIGHTS</span>
-            </a>
-            <nav id="main-nav">
-                <a href="#dashboard" class="nav-item active" data-tab="dashboard">Dashboard</a>
-                <a href="#teams" class="nav-item" data-tab="teams">Team Analytics</a>
-                <a href="#ai-engine" class="nav-item" data-tab="ai-engine">AI Inference</a>
-                <a href="#auction" class="nav-item" data-tab="auction">1v1 Draft Auction</a>
-                <a href="#live-scores" class="nav-item" data-tab="live-scores">Sofa Score Centre</a>
-                <a href="#journey" class="nav-item" data-tab="journey">Journey Simulator</a>
-            </nav>
+<div class="bg-grid"></div>
+<div class="bg-orbs">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<!-- HEADER -->
+<header id="site-header">
+  <div class="hdr-inner">
+    <div class="hdr-brand">
+      <span class="brand-wc">⚽ WC</span>
+      <span class="brand-year">2026</span>
+      <span class="brand-tag">AI HUB</span>
+    </div>
+    <nav id="nav">
+      <button class="nav-btn active" data-tab="overview">Overview</button>
+      <button class="nav-btn" data-tab="groups">Groups &amp; Standings</button>
+      <button class="nav-btn" data-tab="teams">48 Teams</button>
+      <button class="nav-btn" data-tab="ai">AI Inference</button>
+      <button class="nav-btn" data-tab="auction">Draft Auction</button>
+      <button class="nav-btn" data-tab="journey">Journey Sim</button>
+    </nav>
+    <div class="hdr-live"><span class="live-dot"></span> LIVE · Jun 15, 2026</div>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- TAB 1: OVERVIEW                                        -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="tab-overview" class="tab active">
+  <div class="page-title">
+    <h1>Tournament Overview</h1>
+    <p>Live results & stats as of June 15, 2026 — Group Stage in progress</p>
+  </div>
+
+  <!-- KPI Bar -->
+  <div class="kpi-strip" id="kpi-strip">
+    <div class="kpi-card"><span class="kpi-num" id="kpi-matches">--</span><span class="kpi-label">Matches Played</span></div>
+    <div class="kpi-card"><span class="kpi-num" id="kpi-goals">--</span><span class="kpi-label">Total Goals</span></div>
+    <div class="kpi-card"><span class="kpi-num" id="kpi-gpg">--</span><span class="kpi-label">Goals / Game</span></div>
+    <div class="kpi-card"><span class="kpi-num" id="kpi-top-scorer">--</span><span class="kpi-label">Top Scorer</span></div>
+    <div class="kpi-card"><span class="kpi-num" id="kpi-top-asst">--</span><span class="kpi-label">Top Assist</span></div>
+    <div class="kpi-card"><span class="kpi-num" id="kpi-top-rated">--</span><span class="kpi-label">Best Rated</span></div>
+  </div>
+
+  <!-- Today's Fixtures & Top Scorers -->
+  <div class="two-col">
+    <div class="panel">
+      <div class="panel-header">
+        <h3>Today's Matches · June 15</h3>
+        <input type="date" id="date-filter" value="2026-06-15" min="2026-06-11" max="2026-07-19">
+      </div>
+      <div id="today-fixtures" class="fixture-list"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <h3>Top Performers</h3>
+        <div class="tab-pills">
+          <button class="pill active" data-perf="goals">Goals</button>
+          <button class="pill" data-perf="assists">Assists</button>
+          <button class="pill" data-perf="rating">Rating</button>
+          <button class="pill" data-perf="xg">xG</button>
         </div>
-    </header>
+      </div>
+      <div id="performers-list"></div>
+    </div>
+  </div>
 
-    <!-- Main Content Wrapper -->
-    <main class="container">
-        
-        <!-- SECTION 1: DASHBOARD -->
-        <section id="dashboard-tab" class="tab-content active">
-            <div class="section-header">
-                <h2>Tournament Overview</h2>
-                <p>Real-time tournament metrics, key performance indicators, and matches for the current timeline.</p>
-            </div>
-            
-            <!-- KPIs Row -->
-            <div class="kpis-grid">
-                <div class="kpi-card">
-                    <div class="kpi-icon">⚽</div>
-                    <div class="kpi-info">
-                        <span class="kpi-label">Total Goals</span>
-                        <h3 id="kpi-goals">-</h3>
-                    </div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon">👟</div>
-                    <div class="kpi-info">
-                        <span class="kpi-label">Total Assists</span>
-                        <h3 id="kpi-assists">-</h3>
-                    </div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon">🛡️</div>
-                    <div class="kpi-info">
-                        <span class="kpi-label">Clean Sheets</span>
-                        <h3 id="kpi-cleansheets">-</h3>
-                    </div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon">⭐</div>
-                    <div class="kpi-info">
-                        <span class="kpi-label">Avg Rating</span>
-                        <h3 id="kpi-rating">-</h3>
-                    </div>
-                </div>
-            </div>
+  <!-- Goals by Group Chart -->
+  <div class="panel full-panel">
+    <h3>Goals Scored by Group (So Far)</h3>
+    <div class="chart-wrap"><canvas id="chart-goals-group"></canvas></div>
+  </div>
+</section>
 
-            <!-- Dashboard Columns (Schedules vs Top Performers) -->
-            <div class="dash-columns">
-                <!-- Matches Column -->
-                <div class="dash-col main-card">
-                    <div class="card-header">
-                        <h4>Matchday Schedule</h4>
-                        <div class="date-selector-wrapper">
-                            <label for="matchday-date">Select Date:</label>
-                            <input type="date" id="matchday-date" min="2026-06-11" max="2026-07-31" value="2026-06-15">
-                        </div>
-                    </div>
-                    <div class="matchday-status">
-                        Current Date Threshold: <span class="neon-cyan">June 15, 2026</span> (Live Tournament Active)
-                    </div>
-                    <div id="matchday-list" class="matchday-list">
-                        <!-- Matches loaded dynamically -->
-                        <div class="loading-spinner">Loading matches...</div>
-                    </div>
-                </div>
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- TAB 2: GROUPS & STANDINGS                             -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="tab-groups" class="tab">
+  <div class="page-title">
+    <h1>Groups &amp; Standings</h1>
+    <p>All 12 groups — live standings computed from played matches</p>
+  </div>
+  <div class="groups-grid" id="groups-grid"></div>
+</section>
 
-                <!-- Top Performers Column -->
-                <div class="dash-col main-card">
-                    <div class="card-header">
-                        <h4>Top Tournament Players</h4>
-                    </div>
-                    <div class="performers-container">
-                        <div class="performers-header">
-                            <span class="perf-tab active" data-type="goals">Goals</span>
-                            <span class="perf-tab" data-type="assists">Assists</span>
-                            <span class="perf-tab" data-type="rating">Rating</span>
-                        </div>
-                        <div id="performers-list" class="performers-list">
-                            <!-- Players loaded dynamically -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- TAB 3: 48 TEAMS                                        -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="tab-teams" class="tab">
+  <div class="page-title">
+    <h1>All 48 Teams</h1>
+    <p>Select any team to view squad, metrics, charts & knockout prediction</p>
+  </div>
 
-        <!-- SECTION 2: TEAM ANALYTICS -->
-        <section id="teams-tab" class="tab-content">
-            <div class="section-header">
-                <h2>Team Analytics & Profiles</h2>
-                <p>Select a team to perform deep statistical strengths/weaknesses and Monte Carlo knockout stage projection.</p>
-            </div>
-            
-            <div class="team-profile-container">
-                <!-- Left Column: Search & Team List -->
-                <div class="team-list-sidebar main-card">
-                    <div class="search-box">
-                        <input type="text" id="team-search" placeholder="Search 48 teams...">
-                    </div>
-                    <div id="teams-grid" class="teams-grid-sidebar">
-                        <!-- Loaded dynamically -->
-                    </div>
-                </div>
-                
-                <!-- Right Column: Analytics Profile Details -->
-                <div class="team-details-content">
-                    <div id="team-empty-state" class="main-card empty-state">
-                        <span class="big-icon">📊</span>
-                        <h3>No Team Selected</h3>
-                        <p>Choose a team from the sidebar to view detailed roster ratings, combinations of strengths & weaknesses, and ML knockout stage predictions.</p>
-                    </div>
-                    
-                    <div id="team-details-card" class="team-details-card" style="display: none;">
-                        <!-- Banner Area -->
-                        <div class="team-banner main-card">
-                            <div class="team-meta-header">
-                                <h2 id="detail-team-name">Spain</h2>
-                                <span class="group-tag" id="detail-team-group">Group G</span>
-                            </div>
-                            <div class="rating-gauge-wrapper">
-                                <div class="rating-label">Overall Rating</div>
-                                <div class="rating-value" id="detail-team-rating">8.2</div>
-                            </div>
-                        </div>
-                        
-                        <!-- Core Metrics Rows -->
-                        <div class="metrics-grid">
-                            <div class="metric-progress-card main-card">
-                                <h5>Offensive Impact</h5>
-                                <div class="progress-bar-container">
-                                    <div class="progress-fill" id="metric-fill-offense" style="width: 75%;"></div>
-                                </div>
-                                <span class="metric-score" id="metric-score-offense">75/100</span>
-                            </div>
-                            <div class="metric-progress-card main-card">
-                                <h5>Defensive Rigidity</h5>
-                                <div class="progress-bar-container">
-                                    <div class="progress-fill" id="metric-fill-defense" style="width: 78%;"></div>
-                                </div>
-                                <span class="metric-score" id="metric-score-defense">78/100</span>
-                            </div>
-                            <div class="metric-progress-card main-card">
-                                <h5>Midfield Control</h5>
-                                <div class="progress-bar-container">
-                                    <div class="progress-fill" id="metric-fill-possession" style="width: 80%;"></div>
-                                </div>
-                                <span class="metric-score" id="metric-score-possession">80/100</span>
-                            </div>
-                            <div class="metric-progress-card main-card">
-                                <h5>Pass Precision</h5>
-                                <div class="progress-bar-container">
-                                    <div class="progress-fill" id="metric-fill-passing" style="width: 85%;"></div>
-                                </div>
-                                <span class="metric-score" id="metric-score-passing">85%</span>
-                            </div>
-                        </div>
+  <div class="teams-layout">
+    <!-- Left: dropdown + grid -->
+    <div class="teams-sidebar">
+      <div class="sidebar-controls">
+        <select id="team-dropdown" class="team-select">
+          <option value="">-- Select a Team --</option>
+        </select>
+        <input type="text" id="team-search" placeholder="Search team..." class="search-input">
+        <select id="group-filter" class="group-select">
+          <option value="">All Groups</option>
+        </select>
+      </div>
+      <div id="teams-list" class="teams-list"></div>
+    </div>
 
-                        <!-- Strengths / Weaknesses Combinations -->
-                        <div class="analysis-grid">
-                            <div class="analysis-box strengths main-card">
-                                <h4>🏆 Core Strategic Strengths</h4>
-                                <ul id="detail-strengths-list">
-                                    <!-- Dynamic -->
-                                </ul>
-                            </div>
-                            <div class="analysis-box weaknesses main-card">
-                                <h4>⚠️ Tactical Weaknesses</h4>
-                                <ul id="detail-weaknesses-list">
-                                    <!-- Dynamic -->
-                                </ul>
-                            </div>
-                        </div>
+    <!-- Right: team profile -->
+    <div class="team-profile" id="team-profile">
+      <div class="empty-state">
+        <div class="empty-icon">🏟️</div>
+        <h3>Select a Team</h3>
+        <p>Choose from the 48 qualified nations to see full squad, analytics, and AI-powered knockout prediction.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
-                        <!-- ML Predictions Widget -->
-                        <div class="prediction-widget main-card">
-                            <h4>🤖 ML Monte Carlo Knockout Forecast</h4>
-                            <p class="description">Simulated probabilities of advancing through each knockout stage based on historical form and fixture paths.</p>
-                            <div class="probability-steps" id="prediction-stages-list">
-                                <!-- Dynamic -->
-                            </div>
-                        </div>
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- TAB 4: AI INFERENCE                                    -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="tab-ai" class="tab">
+  <div class="page-title">
+    <h1>AI Inference Engine</h1>
+    <p>Powered by Groq · Llama 3 · 5-key rotation · real player &amp; opponent data</p>
+  </div>
+  <div class="ai-layout">
+    <div class="ai-controls panel">
+      <h3>Configure Analysis</h3>
+      <label>Player Name (from dataset)</label>
+      <input type="text" id="ai-player" value="Rodri Fati" placeholder="e.g. Rodri Fati">
+      <label>Opponent Team</label>
+      <select id="ai-opponent"></select>
+      <button class="btn-primary" id="ai-run-btn">⚡ Run AI Analysis</button>
+      <div class="ai-meta">
+        <span>🔑 Rotating 5 Groq API keys</span>
+        <span>🦙 Llama 3 8B · Instant inference</span>
+      </div>
+    </div>
+    <div class="ai-terminal panel">
+      <div class="terminal-bar">
+        <span class="t-dot r"></span><span class="t-dot y"></span><span class="t-dot g"></span>
+        <span class="t-title">GROQ INFERENCE · FIFA 2026 ANALYST</span>
+      </div>
+      <div id="ai-output" class="terminal-body">
+        <span class="t-prompt">&gt; </span><span class="t-cursor">Ready. Configure player &amp; opponent, then press Run Analysis.</span>
+      </div>
+    </div>
+  </div>
 
-                        <!-- Roster Roster Card -->
-                        <div class="roster-widget main-card">
-                            <h4>Roster & Player Statistics</h4>
-                            <div class="table-wrapper">
-                                <table class="roster-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Jersey</th>
-                                            <th>Name</th>
-                                            <th>Age</th>
-                                            <th>Position</th>
-                                            <th>Club</th>
-                                            <th>Market Value</th>
-                                            <th>Tournament Rating</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="detail-roster-body">
-                                        <!-- Dynamic -->
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
+  <!-- Compare two players -->
+  <div class="panel full-panel" style="margin-top:24px">
+    <h3>Head-to-Head Player Comparison</h3>
+    <div class="compare-inputs">
+      <input type="text" id="cmp-p1" placeholder="Player 1 name" value="Rodri Fati">
+      <input type="text" id="cmp-p2" placeholder="Player 2 name" value="Ansu Le Normand">
+      <button class="btn-primary" id="cmp-btn">Compare</button>
+    </div>
+    <div id="compare-out" class="compare-out" style="display:none"></div>
+  </div>
+</section>
 
-        <!-- SECTION 3: AI INFERENCE ENGINE -->
-        <section id="ai-engine-tab" class="tab-content">
-            <div class="section-header">
-                <h2>Custom AI Inference Engine</h2>
-                <p>Run custom statistical queries against Groq Llama 3 models to perform tactical matchups (e.g. Yamal vs Saudi Arabia).</p>
-            </div>
-            
-            <div class="ai-console-wrapper">
-                <!-- Query Box -->
-                <div class="ai-query-card main-card">
-                    <h4>Configure Analysis</h4>
-                    <div class="form-group">
-                        <label for="ai-player-name">Player Name:</label>
-                        <input type="text" id="ai-player-name" placeholder="e.g. Rodri Fati or Ansu Le Normand" value="Rodri Fati">
-                        <span class="input-helper">Pulls actual player stats dynamically from the tournament CSV dataset.</span>
-                    </div>
-                    <div class="form-group">
-                        <label for="ai-opponent-team">Opponent Team:</label>
-                        <select id="ai-opponent-team">
-                            <!-- Populated dynamically -->
-                        </select>
-                        <span class="input-helper">Fetches the defense metrics and overall team ratings of the opponent.</span>
-                    </div>
-                    <button id="ai-query-btn" class="glow-button">Generate AI Scouting Report</button>
-                    
-                    <div class="ai-key-info">
-                        Rotating <span class="neon-gold">5 Groq API Keys</span> round-robin to maximize prompt speed and bypass rate limits.
-                    </div>
-                </div>
-                
-                <!-- Output Box -->
-                <div class="ai-output-card main-card">
-                    <div class="console-header">
-                        <span class="terminal-dots"><span></span><span></span><span></span></span>
-                        <span class="console-title">INFERENCE ENGINE TERMINAL</span>
-                    </div>
-                    <div id="ai-output-content" class="console-body">
-                        <div class="terminal-placeholder">
-                            <span class="cursor">></span> Ready for analysis. Enter player/opponent details and press Generate...
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- TAB 5: DRAFT AUCTION                                   -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="tab-auction" class="tab">
+  <div class="page-title">
+    <h1>1v1 AI Draft Auction</h1>
+    <p>Budget: 120 CP · Build 11 starters + 4 subs · All players start at <strong>1 CP</strong> · Bids rise by +1 each round</p>
+  </div>
 
-        <!-- SECTION 4: AI DRAFT AUCTION -->
-        <section id="auction-tab" class="tab-content">
-            <div class="section-header">
-                <h2>1v1 AI Draft Auction & Match Simulator</h2>
-                <p>Draft a starting 11 plus 4 subs (15 players) against an AI manager under a 120 CP budget, then simulate the match!</p>
-            </div>
-            
-            <!-- Setup Screen -->
-            <div id="auction-setup" class="main-card start-draft-card">
-                <h3>Draft Rules</h3>
-                <ul>
-                    <li><strong>Squad Requirements</strong>: 15 players (11 Starters + 4 Substitutes).</li>
-                    <li><strong>Budget Limit</strong>: 120 CP (Draft Points) units.</li>
-                    <li><strong>Pool Size</strong>: Limited to the top 15 players in each position (Goalkeeper, Defender, Midfielder, Forward).</li>
-                    <li><strong>AI Manager</strong>: Bids competitively based on remaining budget and roster needs.</li>
-                    <li><strong>Skip Feature</strong>: If you do not want a player, skip him to draw the next one.</li>
-                </ul>
-                <button id="start-draft-btn" class="glow-button">Start Auction Draft</button>
-            </div>
-            
-            <!-- Active Draft Board -->
-            <div id="auction-active" class="auction-board-layout" style="display: none;">
-                <!-- Left: Bidding Desk -->
-                <div class="bidding-desk main-card">
-                    <div class="draft-round-info">
-                        Draft Stage: <span id="draft-count">0/15</span> Players Selected
-                    </div>
-                    
-                    <!-- Popped Player Display Card -->
-                    <div class="popped-player-card">
-                        <div class="popped-pos" id="popped-player-pos">FWD</div>
-                        <h2 id="popped-player-name">Lamine Yamal</h2>
-                        <div class="popped-team-info">
-                            Team: <span id="popped-player-team">Spain</span> | Rating: <span id="popped-player-rating" class="neon-gold">9.2</span>
-                        </div>
-                        <div class="popped-cost-info">
-                            Starting Price: <span id="popped-player-cost" class="neon-cyan">28</span> CP
-                        </div>
-                    </div>
-                    
-                    <!-- Bidding Controls -->
-                    <div class="bidding-controls">
-                        <div class="current-bid-display">
-                            Current Bid: <span id="current-bid-value">28</span> CP (Held by: <span id="current-bid-holder">System</span>)
-                        </div>
-                        <div class="action-buttons-row">
-                            <button id="bid-raise-btn" class="glow-button bid">Raise Bid (+1 CP)</button>
-                            <button id="bid-pass-btn" class="glow-button pass">Pass (Yield to AI)</button>
-                            <button id="bid-skip-btn" class="glow-button skip">Skip Player</button>
-                        </div>
-                    </div>
-                    
-                    <!-- Live Bid Log -->
-                    <div class="bid-history-log">
-                        <h5>Draft Bidding log</h5>
-                        <div id="bid-history-entries" class="log-entries">
-                            <!-- Dynamic logs -->
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Right: Rosters & Budget Tracker -->
-                <div class="rosters-desk">
-                    <!-- Budget Panel -->
-                    <div class="budget-panel main-card">
-                        <div class="budget-bar">
-                            <div class="budget-label">Your Budget: <span id="user-budget" class="neon-gold">120</span> / 120 CP</div>
-                            <div class="budget-fill-container">
-                                <div class="budget-fill-bar user" id="user-budget-fill" style="width: 100%;"></div>
-                            </div>
-                        </div>
-                        <div class="budget-bar">
-                            <div class="budget-label">AI Budget: <span id="ai-budget" class="neon-cyan">120</span> / 120 CP</div>
-                            <div class="budget-fill-container">
-                                <div class="budget-fill-bar ai" id="ai-budget-fill" style="width: 100%;"></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Squad Tabs (User Roster vs AI Roster) -->
-                    <div class="roster-tabs-wrapper main-card">
-                        <div class="roster-headers">
-                            <button class="roster-tab-btn active" id="btn-show-user-roster">Your Squad (<span id="user-roster-count">0</span>/15)</button>
-                            <button class="roster-tab-btn" id="btn-show-ai-roster">AI Squad (<span id="ai-roster-count">0</span>/15)</button>
-                        </div>
-                        <div id="roster-players-list" class="roster-players-list">
-                            <!-- Rosters lists dynamically loaded -->
-                        </div>
-                        
-                        <!-- Simulate Match Button (Active when both squads have 15 players) -->
-                        <button id="simulate-draft-match-btn" class="glow-button full-width" style="display: none;">SIMULATE 1v1 MATCH</button>
-                    </div>
-                </div>
-            </div>
+  <!-- Setup -->
+  <div id="auction-setup" class="panel setup-card">
+    <div class="rules-grid">
+      <div class="rule"><span class="rule-num">120</span><span class="rule-label">Total CP Budget</span></div>
+      <div class="rule"><span class="rule-num">15</span><span class="rule-label">Players to Draft</span></div>
+      <div class="rule"><span class="rule-num">1</span><span class="rule-label">Starting Bid (CP)</span></div>
+      <div class="rule"><span class="rule-num">+1</span><span class="rule-label">Bid Increment</span></div>
+    </div>
+    <p class="rules-note">Players are drawn randomly from the top pool. Every player starts at <strong>1 CP</strong>. Each time you raise a bid, it goes up by 1 CP. Pass to let AI win at current bid. Skip to draw a new player.</p>
+    <button class="btn-primary big-btn" id="start-auction-btn">🎯 Start Auction</button>
+  </div>
 
-            <!-- Match Simulation Popup overlay -->
-            <div id="sim-modal" class="modal-overlay" style="display: none;">
-                <div class="modal-card main-card">
-                    <div class="modal-header">
-                        <h3>1v1 Draft Match Simulator</h3>
-                        <button class="modal-close" id="close-sim-modal-btn">&times;</button>
-                    </div>
-                    <div class="modal-body">
-                        <!-- Scoreboard -->
-                        <div class="scoreboard">
-                            <div class="score-team user">
-                                <h4>Your Draft Team</h4>
-                                <span class="team-rating-badge" id="sim-user-power">Rating: -</span>
-                            </div>
-                            <div class="score-values">
-                                <span id="sim-user-score">0</span>
-                                <span class="score-divider">:</span>
-                                <span id="sim-ai-score">0</span>
-                            </div>
-                            <div class="score-team ai">
-                                <h4>AI Draft Team</h4>
-                                <span class="team-rating-badge" id="sim-ai-power">Rating: -</span>
-                            </div>
-                        </div>
-                        
-                        <!-- Simulation Text Stream -->
-                        <div class="match-text-stream" id="match-text-stream">
-                            <!-- Loading / Ticking commentary logs -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
+  <!-- Active Auction Board -->
+  <div id="auction-board" class="auction-layout" style="display:none">
+    <!-- Centre: Current player card -->
+    <div class="auction-centre">
+      <div class="current-player-card" id="cur-player-card">
+        <div class="cur-pos" id="cur-pos">FWD</div>
+        <div class="cur-tier" id="cur-tier">Elite</div>
+        <h2 id="cur-name">Loading...</h2>
+        <div class="cur-team" id="cur-team">Team</div>
+        <div class="cur-stats">
+          <span>Rating <strong id="cur-rating">-</strong></span>
+          <span>Goals <strong id="cur-goals">-</strong></span>
+          <span>Assists <strong id="cur-assists">-</strong></span>
+          <span>Age <strong id="cur-age">-</strong></span>
+        </div>
+        <div class="cur-bid-display">
+          Current Bid: <span id="cur-bid">1</span> CP &nbsp;·&nbsp; Held by: <span id="cur-holder">—</span>
+        </div>
+      </div>
 
-        <!-- SECTION 5: SOFASCORE LIVE -->
-        <section id="live-scores-tab" class="tab-content">
-            <div class="section-header">
-                <h2>Sofa Score Match Centre</h2>
-                <p>Real-time tournament scoreboards synced via Sofascore API pipelines with statistical comparisons.</p>
-            </div>
-            
-            <div class="sofascore-layout">
-                <!-- Live score board cards -->
-                <div class="live-scores-panel main-card">
-                    <div class="card-header">
-                        <h4>Live & Today's Fixtures</h4>
-                        <button class="glow-button refresh-btn" id="refresh-scores-btn">Refresh Feed</button>
-                    </div>
-                    <div id="sofascore-match-list" class="sofascore-match-list">
-                        <!-- Dynamic match feeds -->
-                    </div>
-                </div>
-                
-                <!-- Player Comparison Widget -->
-                <div class="player-compare-panel main-card">
-                    <h4>H2H Player Comparison</h4>
-                    <p class="description">Compare statistics of two players from the tournament side-by-side.</p>
-                    <div class="compare-inputs">
-                        <div class="compare-col">
-                            <label for="comp-p1">Player 1 Name:</label>
-                            <input type="text" id="comp-p1" placeholder="e.g. Rodri Fati" value="Rodri Fati">
-                        </div>
-                        <div class="compare-col">
-                            <label for="comp-p2">Player 2 Name:</label>
-                            <input type="text" id="comp-p2" placeholder="e.g. Ansu Le Normand" value="Ansu Le Normand">
-                        </div>
-                    </div>
-                    <button class="glow-button full-width" id="compare-players-btn">Compare Stats</button>
-                    
-                    <!-- Comparison Output sliders -->
-                    <div id="compare-results-container" class="compare-results-container" style="display: none;">
-                        <div class="player-names-row">
-                            <h4 id="comp-name-p1">Player 1</h4>
-                            <span class="compare-vs">VS</span>
-                            <h4 id="comp-name-p2">Player 2</h4>
-                        </div>
-                        <div class="comparison-stats-bars" id="comparison-stats-bars">
-                            <!-- Dynamic stats bars -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
+      <!-- Bid controls -->
+      <div class="bid-controls">
+        <button class="bid-btn raise" id="btn-raise">▲ Raise Bid (+1 CP)</button>
+        <button class="bid-btn pass"  id="btn-pass">✓ Pass / Accept</button>
+        <button class="bid-btn skip"  id="btn-skip">↷ Skip Player</button>
+      </div>
 
-        <!-- SECTION 6: JOURNEY SIMULATOR -->
-        <section id="journey-tab" class="tab-content">
-            <div class="section-header">
-                <h2>Tournament Journey Simulator</h2>
-                <p>Choose your country, simulate your group stages, and navigate the Round of 32 knockout bracket to see if you can lift the Cup!</p>
-            </div>
-            
-            <div class="journey-layout">
-                <!-- Left: Team Selector & Standings -->
-                <div class="journey-sidebar-panel">
-                    <div class="journey-select-card main-card">
-                        <label for="journey-team-select">Select Country to Guide:</label>
-                        <select id="journey-team-select">
-                            <!-- Dynamic options -->
-                        </select>
-                        <button class="glow-button full-width" id="start-journey-btn">Simulate Journey</button>
-                    </div>
-                    
-                    <!-- Group Standings Output -->
-                    <div class="journey-standings-card main-card" id="journey-standings-card" style="display: none;">
-                        <h4>Group Stage Standings</h4>
-                        <div class="table-wrapper">
-                            <table class="roster-table">
-                                <thead>
-                                    <tr>
-                                        <th>Team</th>
-                                        <th>Pld</th>
-                                        <th>Pts</th>
-                                        <th>GD</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="journey-standings-body">
-                                    <!-- Dynamic standings -->
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="qualify-badge-info" id="journey-qualify-badge"></div>
-                    </div>
-                </div>
-                
-                <!-- Right: Knockout Bracket Tree -->
-                <div class="journey-bracket-panel main-card">
-                    <h4>Knockout Progression Tree</h4>
-                    <div class="bracket-wrapper" id="journey-bracket-wrapper">
-                        <div class="bracket-empty-state">
-                            Select a country and press Simulate Journey to generate the knockout path.
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-        
-    </main>
+      <!-- Bid log -->
+      <div class="bid-log-wrap">
+        <div class="bid-log-title">Bid History</div>
+        <div id="bid-log" class="bid-log"></div>
+      </div>
+    </div>
 
-    <!-- JavaScript Controller -->
-    <script src="app.js"></script>
+    <!-- Left: User squad -->
+    <div class="squad-panel panel" id="user-squad-panel">
+      <div class="squad-header">
+        <h4>Your Squad</h4>
+        <div class="budget-display">Budget: <span id="user-budget">120</span> CP</div>
+      </div>
+      <div class="budget-bar-wrap">
+        <div class="budget-bar-fill user" id="user-bar" style="width:100%"></div>
+      </div>
+      <div id="user-roster" class="roster-list"></div>
+    </div>
+
+    <!-- Right: AI squad -->
+    <div class="squad-panel panel" id="ai-squad-panel">
+      <div class="squad-header">
+        <h4>AI Manager</h4>
+        <div class="budget-display">Budget: <span id="ai-budget">120</span> CP</div>
+      </div>
+      <div class="budget-bar-wrap">
+        <div class="budget-bar-fill ai" id="ai-bar" style="width:100%"></div>
+      </div>
+      <div id="ai-roster" class="roster-list"></div>
+    </div>
+  </div>
+
+  <!-- Simulate match button (shown when draft complete) -->
+  <div id="sim-ready" style="display:none; text-align:center; margin-top:20px">
+    <button class="btn-primary big-btn" id="simulate-btn">🏟️ Simulate 1v1 Match</button>
+  </div>
+
+  <!-- Match simulation modal -->
+  <div id="sim-modal" class="modal" style="display:none">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Match Simulation</h3>
+        <button id="close-modal" class="modal-close">&times;</button>
+      </div>
+      <div class="scoreboard-row">
+        <div class="sb-team">
+          <div class="sb-name">Your Team</div>
+          <div class="sb-score" id="sb-user">0</div>
+          <div class="sb-power" id="sb-upow"></div>
+        </div>
+        <div class="sb-vs">VS</div>
+        <div class="sb-team">
+          <div class="sb-score" id="sb-ai">0</div>
+          <div class="sb-name">AI Team</div>
+          <div class="sb-power" id="sb-apow"></div>
+        </div>
+      </div>
+      <div id="match-feed" class="match-feed"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- TAB 6: JOURNEY SIMULATOR                               -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="tab-journey" class="tab">
+  <div class="page-title">
+    <h1>Team Journey Simulator</h1>
+    <p>Select a nation — simulate their full WC 2026 path from group stage to the Final</p>
+  </div>
+
+  <div class="journey-layout">
+    <div class="journey-controls panel">
+      <label>Choose Your Nation</label>
+      <select id="journey-team-select" class="team-select"></select>
+      <button class="btn-primary" id="run-journey-btn">🗺 Simulate Journey</button>
+      <div id="journey-group-info" class="journey-group-info" style="display:none"></div>
+    </div>
+
+    <div class="journey-content" id="journey-content">
+      <div class="empty-state">
+        <div class="empty-icon">🗺️</div>
+        <h3>Choose a nation to simulate</h3>
+        <p>We'll simulate their group stage, compute standings, then predict their knockout path all the way to the Final.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Journey Prediction Chart (shown after simulation) -->
+  <div id="journey-chart-section" class="panel full-panel" style="display:none; margin-top:24px">
+    <h3>Knockout Stage Probability Breakdown</h3>
+    <div class="chart-wrap"><canvas id="chart-journey"></canvas></div>
+  </div>
+</section>
+
+</main>
+
+<script src="app.js"></script>
 </body>
 </html>

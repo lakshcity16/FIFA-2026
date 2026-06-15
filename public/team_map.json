@@ -1,0 +1,290 @@
+{
+  "Algeria": {
+    "ref": "Algeria",
+    "group": "H",
+    "iso2": "dz",
+    "fifa_code": "ALG"
+  },
+  "Argentina": {
+    "ref": "Argentina",
+    "group": "C",
+    "iso2": "ar",
+    "fifa_code": "ARG"
+  },
+  "Australia": {
+    "ref": "Australia",
+    "group": "H",
+    "iso2": "au",
+    "fifa_code": "AUS"
+  },
+  "Austria": {
+    "ref": "Austria",
+    "group": "E",
+    "iso2": "at",
+    "fifa_code": "AUT"
+  },
+  "Belgium": {
+    "ref": "Belgium",
+    "group": "J",
+    "iso2": "be",
+    "fifa_code": "BEL"
+  },
+  "Brazil": {
+    "ref": "Brazil",
+    "group": "I",
+    "iso2": "br",
+    "fifa_code": "BRA"
+  },
+  "Cameroon": {
+    "ref": "Cameroon",
+    "group": "L",
+    "iso2": "cm",
+    "fifa_code": "CMR"
+  },
+  "Canada": {
+    "ref": "Canada",
+    "group": "B",
+    "iso2": "ca",
+    "fifa_code": "CAN"
+  },
+  "Chile": {
+    "ref": "Chile",
+    "group": "G",
+    "iso2": "cl",
+    "fifa_code": "CHI"
+  },
+  "Colombia": {
+    "ref": "Colombia",
+    "group": "D",
+    "iso2": "co",
+    "fifa_code": "COL"
+  },
+  "Costa Rica": {
+    "ref": "Costa Rica",
+    "group": "A",
+    "iso2": "cr",
+    "fifa_code": "CRC"
+  },
+  "Croatia": {
+    "ref": "Croatia",
+    "group": "F",
+    "iso2": "hr",
+    "fifa_code": "CRO"
+  },
+  "Denmark": {
+    "ref": "Denmark",
+    "group": "E",
+    "iso2": "dk",
+    "fifa_code": "DEN"
+  },
+  "Ecuador": {
+    "ref": "Ecuador",
+    "group": "C",
+    "iso2": "ec",
+    "fifa_code": "ECU"
+  },
+  "Egypt": {
+    "ref": "Egypt",
+    "group": "D",
+    "iso2": "eg",
+    "fifa_code": "EGY"
+  },
+  "England": {
+    "ref": "England",
+    "group": "G",
+    "iso2": "gb-eng",
+    "fifa_code": "ENG"
+  },
+  "France": {
+    "ref": "France",
+    "group": "I",
+    "iso2": "fr",
+    "fifa_code": "FRA"
+  },
+  "Germany": {
+    "ref": "Germany",
+    "group": "B",
+    "iso2": "de",
+    "fifa_code": "GER"
+  },
+  "Ghana": {
+    "ref": "Ghana",
+    "group": "K",
+    "iso2": "gh",
+    "fifa_code": "GHA"
+  },
+  "Iran": {
+    "ref": "Iran",
+    "group": "F",
+    "iso2": "ir",
+    "fifa_code": "IRN"
+  },
+  "Iraq": {
+    "ref": "Iraq",
+    "group": "L",
+    "iso2": "iq",
+    "fifa_code": "IRQ"
+  },
+  "Italy": {
+    "ref": "Italy",
+    "group": "J",
+    "iso2": "it",
+    "fifa_code": "ITA"
+  },
+  "Jamaica": {
+    "ref": "Jamaica",
+    "group": "K",
+    "iso2": "jm",
+    "fifa_code": "JAM"
+  },
+  "Japan": {
+    "ref": "Japan",
+    "group": "B",
+    "iso2": "jp",
+    "fifa_code": "JPN"
+  },
+  "Mexico": {
+    "ref": "Mexico",
+    "group": "A",
+    "iso2": "mx",
+    "fifa_code": "MEX"
+  },
+  "Morocco": {
+    "ref": "Morocco",
+    "group": "F",
+    "iso2": "ma",
+    "fifa_code": "MAR"
+  },
+  "Netherlands": {
+    "ref": "Netherlands",
+    "group": "E",
+    "iso2": "nl",
+    "fifa_code": "NED"
+  },
+  "Nigeria": {
+    "ref": "Nigeria",
+    "group": "D",
+    "iso2": "ng",
+    "fifa_code": "NGA"
+  },
+  "Panama": {
+    "ref": "Panama",
+    "group": "A",
+    "iso2": "pa",
+    "fifa_code": "PAN"
+  },
+  "Peru": {
+    "ref": "Peru",
+    "group": "G",
+    "iso2": "pe",
+    "fifa_code": "PER"
+  },
+  "Poland": {
+    "ref": "Poland",
+    "group": "H",
+    "iso2": "pl",
+    "fifa_code": "POL"
+  },
+  "Portugal": {
+    "ref": "Portugal",
+    "group": "I",
+    "iso2": "pt",
+    "fifa_code": "POR"
+  },
+  "Qatar": {
+    "ref": "Qatar",
+    "group": "L",
+    "iso2": "qa",
+    "fifa_code": "QAT"
+  },
+  "Saudi Arabia": {
+    "ref": "Saudi Arabia",
+    "group": "C",
+    "iso2": "sa",
+    "fifa_code": "KSA"
+  },
+  "Scotland": {
+    "ref": "Scotland",
+    "group": "K",
+    "iso2": "gb-sct",
+    "fifa_code": "SCO"
+  },
+  "Senegal": {
+    "ref": "Senegal",
+    "group": "J",
+    "iso2": "sn",
+    "fifa_code": "SEN"
+  },
+  "Serbia": {
+    "ref": "Serbia",
+    "group": "G",
+    "iso2": "rs",
+    "fifa_code": "SRB"
+  },
+  "South Africa": {
+    "ref": "South Africa",
+    "group": "A",
+    "iso2": "za",
+    "fifa_code": "RSA"
+  },
+  "South Korea": {
+    "ref": "South Korea",
+    "group": "A",
+    "iso2": "kr",
+    "fifa_code": "KOR"
+  },
+  "Spain": {
+    "ref": "Spain",
+    "group": "C",
+    "iso2": "es",
+    "fifa_code": "ESP"
+  },
+  "Sweden": {
+    "ref": "Sweden",
+    "group": "F",
+    "iso2": "se",
+    "fifa_code": "SWE"
+  },
+  "Switzerland": {
+    "ref": "Switzerland",
+    "group": "E",
+    "iso2": "ch",
+    "fifa_code": "SUI"
+  },
+  "Tunisia": {
+    "ref": "Tunisia",
+    "group": "H",
+    "iso2": "tn",
+    "fifa_code": "TUN"
+  },
+  "Turkey": {
+    "ref": "Turkey",
+    "group": "D",
+    "iso2": "tr",
+    "fifa_code": "TUR"
+  },
+  "Ukraine": {
+    "ref": "Ukraine",
+    "group": "K",
+    "iso2": "ua",
+    "fifa_code": "UKR"
+  },
+  "United States": {
+    "ref": "United States",
+    "group": "B",
+    "iso2": "us",
+    "fifa_code": "USA"
+  },
+  "Uruguay": {
+    "ref": "Uruguay",
+    "group": "L",
+    "iso2": "uy",
+    "fifa_code": "URU"
+  },
+  "Uzbekistan": {
+    "ref": "Uzbekistan",
+    "group": "J",
+    "iso2": "uz",
+    "fifa_code": "UZB"
+  }
+}
