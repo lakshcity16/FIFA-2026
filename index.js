@@ -880,6 +880,51 @@ Keep it strictly to 1 or 2 sentences max. Do not output anything other than the 
   }
 });
 
+// 12b. AI Assistant Chatbot (New Endpoint)
+app.post('/api/ai/chat', async (req, res) => {
+  const { message } = req.body;
+  if (!message) return res.status(400).json({ error: 'message is required' });
+
+  const key = nextKey();
+  if (!key) return res.status(500).json({ error: 'No Groq API keys available' });
+
+  // Generate a context of overall ratings for all teams for Llama 3
+  const contextList = Object.entries(ANALYTICS).map(([team, data]) => {
+    return `${team} (Rating: ${data.overall_rating}/10, Group: ${data.group}, Top Player: ${data.top_player})`;
+  }).join(', ');
+
+  const systemMessage = `You are a world-class football analyst, tactician, and prediction expert covering the FIFA World Cup 2026.
+Here is the context of all 48 participating teams, their overall ratings, groups, and top players:
+${contextList}
+
+Key Tactical Insights & Facts:
+- Major Favorites (Overall 8.5+): Portugal (POR), France (FRA), Spain (ESP), Argentina (ARG), Germany (GER), and England (ENG). They boast elite squad depth, tactical flexibility, and superstars (Kylian Mbappé, Rodri, Lamine Yamal, Cristiano Ronaldo, Jamal Musiala, Jude Bellingham).
+- Dark Horses (Overall 7.2 - 8.2): Morocco (defensive transition speed), Uruguay (relentless high pressing under Bielsa), Croatia (midfield control), USA (young, athletic wingers), Senegal (physical strength).
+- Underdogs (Overall 5.0 - 6.8): Uzbekistan (UZB), Qatar (QAT), Haiti (HAI), South Africa (RSA). Specifically, Uzbekistan is renowned for its incredible defensive discipline, running a tight 5-4-1 low block and using quick direct counter-attacks, making them a very stubborn and dangerous opponent despite their low overall rating.
+- Official Matchball (FIFA 2026 Golden Glory): Uses a aerodynamic textured surface for stable drag, high speed spin stability, and true flight paths. It speeds up passing plays.
+
+Provide precise, analytical answers. Write in the style of a premium Sky Sports football pundit. Make your response highly detailed yet engaging and professional. Limit your response to 150-220 words.`;
+
+  try {
+    const r = await axios.post('https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: message }
+        ],
+        max_tokens: 300,
+        temperature: 0.7
+      },
+      { headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } }
+    );
+    res.json({ response: r.data.choices[0].message.content.trim() });
+  } catch (e) {
+    console.error('Groq chat error:', e.response?.data || e.message);
+    res.json({ response: "I'm analyzing the tactical transitions on the pitch right now, but it looks like my feed is temporarily lagging. Portugal, Spain, and France are still heavy favorites due to their squad depth!" });
+  }
+});
+
 // 13. Sofascore proxy live scores (Fallback preserved)
 app.get('/api/live', async (req, res) => {
   const key = process.env.rapidapi;

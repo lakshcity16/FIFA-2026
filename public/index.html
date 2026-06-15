@@ -23,9 +23,20 @@
 <header id="site-header">
   <div class="hdr-inner">
     <div class="hdr-brand">
-      <span class="brand-wc">⚽ WC</span>
+      <div class="matchball-container" id="header-matchball" style="margin-right: 6px;" title="Click to cycle Matchballs!">
+        <div class="matchball-panel panel-1"></div>
+        <div class="matchball-panel panel-2"></div>
+        <div class="matchball-panel panel-3"></div>
+      </div>
+      <span class="brand-wc">🏆 WC</span>
       <span class="brand-year">2026</span>
       <span class="brand-tag">AI HUB</span>
+      <div class="theme-switcher-container" title="Change Theme Style">
+        <span class="theme-dot dot-gold active" data-theme="gold"></span>
+        <span class="theme-dot dot-cyber" data-theme="cyber"></span>
+        <span class="theme-dot dot-samba" data-theme="samba"></span>
+        <span class="theme-dot dot-frost" data-theme="frost"></span>
+      </div>
     </div>
     <nav id="nav">
       <button class="nav-btn active" data-tab="overview">Overview</button>
@@ -35,6 +46,7 @@
       <button class="nav-btn" data-tab="realdata">Real Live API</button>
       <button class="nav-btn" data-tab="auction">Draft Auction</button>
       <button class="nav-btn" data-tab="journey">Journey Sim</button>
+      <button class="nav-btn" data-tab="aichat">AI Chat</button>
     </nav>
     <!-- Tournament Time Machine Widget -->
     <div class="hdr-time-machine" id="time-machine">
@@ -89,7 +101,13 @@
         <h3>Today's Matches · June 15</h3>
         <input type="date" id="date-filter" value="2026-06-15" min="2026-06-11" max="2026-07-19">
       </div>
-      <div id="today-fixtures" class="fixture-list"></div>
+      <div id="today-fixtures" class="fixture-list" style="max-height: 250px;"></div>
+      <div id="daily-standouts-wrap" style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px;">
+        <h4 style="font-size: 11px; color: var(--accent-2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">⭐ Matchday Standouts</h4>
+        <div id="daily-performers-list" style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
     </div>
     <div class="panel">
       <div class="panel-header">
@@ -231,11 +249,14 @@
         <!-- Auction Timer -->
         <div class="auction-timer-wrap">
           <div class="auction-timer-bar" id="auction-timer-bar" style="width: 100%;"></div>
-          <span class="auction-timer-text" id="auction-timer-text">10s</span>
+          <span class="auction-timer-text" id="auction-timer-text">6s</span>
         </div>
         <div class="cur-pos" id="cur-pos">FWD</div>
         <div class="cur-tier" id="cur-tier">Elite</div>
-        <h2 id="cur-name">Loading...</h2>
+        <h2 id="cur-name" style="display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 20px;">
+          <img id="cur-flag" class="fix-flag" src="" alt="" style="display: none; width: 24px; height: 16px; border-radius: 2px; object-fit: cover; box-shadow: 0 2px 5px rgba(0,0,0,0.5);">
+          <span id="cur-name-text">Loading...</span>
+        </h2>
         <div class="cur-team" id="cur-team">Team</div>
         <div class="cur-stats">
           <span>Rating <strong id="cur-rating">-</strong></span>
@@ -438,6 +459,48 @@
     </div>
     <div id="real-matches-list" class="real-matches-grid" style="margin-top: 16px;">
       <!-- Real matches loaded here -->
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- TAB 8: AI ASSISTANT CHAT                               -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="tab-aichat" class="tab">
+  <div class="page-title">
+    <h1>AI Tournament Analyst</h1>
+    <p>Ask our Llama 3 analyst anything about team stats, favorites, underdogs, or tactical predictions</p>
+  </div>
+  
+  <div class="panel chat-panel" style="max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; height: 500px;">
+    <div class="panel-header" style="border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 12px;">
+      <h3 style="color: var(--accent-2); display: flex; align-items: center; gap: 8px;">
+        💬 FIFA 2026 AI Assistant
+      </h3>
+      <span style="font-size: 11px; color: var(--text-2); background: rgba(34, 211, 238, 0.1); padding: 2px 8px; border-radius: 20px; font-weight: bold;">Llama 3.1 Online</span>
+    </div>
+    
+    <!-- Chat log -->
+    <div class="chat-log" id="chat-log" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 8px; margin-bottom: 16px;">
+      <div class="chat-msg assistant">
+        <div class="chat-bubble">
+          👋 Hello! I am the official FIFA 2026 AI Assistant. Ask me anything about the tournament! E.g. Why are Portugal, France, or Spain favorites? Why is Uzbekistan considered a dark horse? Who will go deep?
+        </div>
+      </div>
+    </div>
+    
+    <!-- Suggestions -->
+    <div class="chat-chips">
+      <div class="chat-chip" data-question="Why are Portugal, France & Spain favorites?">🏆 Why are POR, FRA & ESP favorites?</div>
+      <div class="chat-chip" data-question="Why is Uzbekistan considered a tactical underdog?">🇺🇿 Why is Uzbekistan an underdog?</div>
+      <div class="chat-chip" data-question="Which players and teams are predicted to go deep?">🔮 Who will go deep?</div>
+      <div class="chat-chip" data-question="Explain the physics and behavior of the official Golden Glory 2026 matchball.">⚽ Matchball physics?</div>
+    </div>
+
+    <!-- Chat input -->
+    <div class="chat-input-wrap" style="display: flex; gap: 10px; align-items: center;">
+      <input type="text" id="chat-input" placeholder="Ask about favorites, underdogs, or tactical predictions..." style="flex: 1; background: var(--surface-2); border: 1px solid var(--border); color: #fff; padding: 12px; border-radius: 8px; outline: none; font-size: 13px; font-family: inherit;">
+      <button class="btn-primary" id="chat-send-btn" style="padding: 12px 24px; border-radius: 8px; height: 42px;">Send</button>
     </div>
   </div>
 </section>

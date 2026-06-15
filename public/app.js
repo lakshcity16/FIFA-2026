@@ -44,6 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
 /* ══════════════════ INIT ══════════════════ */
 document.addEventListener('DOMContentLoaded', async () => {
   initTimeMachine();
+  initThemes();
+  initMatchball();
   await Promise.all([
     fetchTeams(), fetchGroups(), fetchPerformers()
   ]);
@@ -54,6 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initAI();
   initAuction();
   initJourney();
+  initChatbot();
 });
 
 /* ── Fetch helpers (automatically append simulated_time) ── */
@@ -253,6 +256,7 @@ async function refreshOverviewTab() {
   
   const todayData = await $get('/api/fixtures?date=' + dateStr);
   renderFixtureList(todayData.fixtures || [], document.getElementById('today-fixtures'));
+  renderDailyPerformers(todayData.fixtures || []);
 
   // Live match center update
   updateLiveMonitor(todayData.fixtures || []);
@@ -1083,7 +1087,18 @@ function nextPlayer() {
   document.getElementById('cur-pos').textContent = _curPlayer.position;
   document.getElementById('cur-pos').className = 'cur-pos pos-badge pos-' + groupPos;
   document.getElementById('cur-tier').textContent = _curPlayer.tier || '';
-  document.getElementById('cur-name').textContent = _curPlayer.name;
+  const flagUrl = getFlagUrl(_curPlayer.team);
+  const flagImg = document.getElementById('cur-flag');
+  if (flagImg) {
+    if (flagUrl) {
+      flagImg.src = flagUrl;
+      flagImg.style.display = 'inline-block';
+    } else {
+      flagImg.style.display = 'none';
+    }
+  }
+  const nameText = document.getElementById('cur-name-text');
+  if (nameText) nameText.textContent = _curPlayer.name;
   document.getElementById('cur-team').textContent = _curPlayer.team;
   document.getElementById('cur-rating').textContent = _curPlayer.rating;
   document.getElementById('cur-goals').textContent = _curPlayer.goals;
@@ -1217,10 +1232,12 @@ function awardPlayer(winner) {
 
 function addToRoster(id, p) {
   const groupPos = ['GK'].includes(p.position) ? 'GK' : ['LB', 'LCB', 'RCB', 'RB'].includes(p.position) ? 'DEF' : ['CDM', 'CM', 'CAM'].includes(p.position) ? 'MID' : 'FWD';
+  const flag = getFlagUrl(p.team);
   const div = document.createElement('div');
   div.className = 'roster-item';
   div.innerHTML = `
     <span class="ri-pos pos-badge pos-${groupPos}">${p.position}</span>
+    ${flag ? `<img src="${flag}" style="width:14px; height:10px; border-radius:1px; object-fit:cover; margin-right:6px; vertical-align:middle;">` : ''}
     <span class="ri-name">${p.name}</span>
     <span class="ri-cp">${p.paid_cp}CP</span>`;
   document.getElementById(id).appendChild(div);
@@ -1285,6 +1302,14 @@ async function simulateMatch() {
   document.getElementById('sb-upow').textContent = 'Avg Rating: ' + res.userPower;
   document.getElementById('sb-apow').textContent = 'Avg Rating: ' + res.aiPower;
   document.getElementById('match-feed').innerHTML = '';
+  
+  // Dynamic flag icons on the scoreboard
+  const userFlags = [...new Set(_userSquad.map(p => getFlagUrl(p.team)).filter(Boolean))].slice(0, 3).map(f => `<img src="${f}" style="width:14px; height:9px; border-radius:1px; margin-right:2px; vertical-align:middle;">`).join('');
+  const aiFlags = [...new Set(_aiSquad.map(p => getFlagUrl(p.team)).filter(Boolean))].slice(0, 3).map(f => `<img src="${f}" style="width:14px; height:9px; border-radius:1px; margin-left:2px; vertical-align:middle;">`).join('');
+
+  document.querySelector('.sb-team:first-child .sb-name').innerHTML = `<span style="display:flex; align-items:center; justify-content:center; gap:6px;">⭐ User Dream Team ${userFlags}</span>`;
+  document.querySelector('.sb-team:last-child .sb-name').innerHTML = `<span style="display:flex; align-items:center; justify-content:center; gap:6px;">${aiFlags} AI Elite Manager 🤖</span>`;
+
   modal.style.display = 'flex';
 
   // Animate events
@@ -1341,38 +1366,102 @@ async function runJourney(teamName) {
     <span style="color:${data.qualifies?'var(--green)':'var(--red)'}">· ${data.qualifies?'✓ Qualifying':'✗ Not qualifying'}</span>`;
 
   // Group matches
-  const groupMatchesHtml = data.group_matches.map(m => `
-    <div class="jrn-match" data-match-id="${m.id}">
-      <span style="color:var(--text-2);font-size:11px;min-width:80px">${m.date}</span>
-      <span style="flex:1">vs <strong>${m.opponent}</strong></span>
-      ${m.is_played
-        ? `<span class="jrn-result-badge ${m.result}">${m.result}</span>
-           <span style="font-weight:700">${m.team_score}–${m.opp_score}</span>`
-        : `<span class="jrn-result-badge TBD">TBD</span>`
-      }
-    </div>`).join('');
-
-  // Knockout path
-  const rounds = [
-    { key: 'r32', label: 'Round of 32' },
-    { key: 'r16', label: 'Round of 16' },
-    { key: 'qf',  label: 'Quarter Final' },
-    { key: 'sf',  label: 'Semi Final' },
-    { key: 'fin', label: 'Final' },
-  ];
-  const koHtml = rounds.map(r => {
-    const rd = ko[r.key];
-    if (!rd) return `<div class="ko-round tbd"><span class="ko-label">${r.label}</span><span class="ko-result" style="color:var(--text-2)">Did not qualify</span></div>`;
-    const cls = rd.win ? 'win' : 'lose';
+  const groupMatchesHtml = data.group_matches.map(m => {
+    const oppFlag = getFlagUrl(m.opponent);
     return `
-      <div class="ko-round ${cls}">
-        <span class="ko-label">${r.label}</span>
-        <span class="ko-result" style="color:${rd.win?'var(--green)':'var(--red)'}">
-          ${rd.win ? '✓ Win' : '✗ Eliminated'} vs ${rd.opponent} (${rd.score})
-        </span>
-        <span class="ko-prob">${rd.prob}% win prob</span>
+      <div class="jrn-match" data-match-id="${m.id}">
+        <span style="color:var(--text-2);font-size:11px;min-width:80px">${m.date}</span>
+        <span style="flex:1; display:flex; align-items:center; gap:6px;">vs ${oppFlag ? `<img class="bm-team-flag" src="${oppFlag}">` : ''}<strong>${m.opponent}</strong></span>
+        ${m.is_played
+          ? `<span class="jrn-result-badge ${m.result}">${m.result}</span>
+             <span style="font-weight:700">${m.team_score}–${m.opp_score}</span>`
+          : `<span class="jrn-result-badge TBD">TBD</span>`
+        }
       </div>`;
   }).join('');
+
+  // Calculate Progress and Vehicle Emoji
+  let progressIndex = 0; // Group Stage
+  let vehicleEmoji = '🚌'; // Team bus
+  
+  if (data.qualifies) {
+    progressIndex = 1; // R32
+    if (ko.r32 && ko.r32.win) {
+      progressIndex = 2; // R16
+      if (ko.r16 && ko.r16.win) {
+        progressIndex = 3; // QF
+        if (ko.qf && ko.qf.win) {
+          progressIndex = 4; // SF
+          if (ko.sf && ko.sf.win) {
+            progressIndex = 5; // Final
+          }
+        }
+      }
+    }
+  }
+
+  const wonFinal = ko.fin && ko.fin.win;
+  if (wonFinal) {
+    vehicleEmoji = '🏆'; // Champion trophy!
+  } else {
+    vehicleEmoji = ['MEX', 'CAN', 'USA'].includes(data.fifa_code) ? '🚄' : '✈️';
+  }
+
+  // Travel Tracker timeline HTML
+  const travelTrackerHtml = `
+    <div class="travel-tracker">
+      <h4 style="font-size: 11px; color: var(--accent-2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; display:flex; align-items:center; gap:6px;">
+        ${vehicleEmoji} Team Travel Progress Tracker
+      </h4>
+      <div class="travel-timeline">
+        <div class="travel-line"></div>
+        <div class="travel-line-progress" style="width: ${progressIndex * 20}%;"></div>
+        <div class="travel-vehicle" style="left: ${progressIndex * 20}%;">${vehicleEmoji}</div>
+        
+        <div class="travel-node ${progressIndex >= 0 ? 'completed' : ''}" title="Group Stage">
+          G
+          <span class="travel-label">Groups<span class="travel-stadium">CDMX 🇲🇽</span></span>
+        </div>
+        <div class="travel-node ${progressIndex > 1 ? 'completed' : progressIndex === 1 ? 'active' : ''}" title="Round of 32">
+          32
+          <span class="travel-label">R32<span class="travel-stadium">Boston 🇺🇸</span></span>
+        </div>
+        <div class="travel-node ${progressIndex > 2 ? 'completed' : progressIndex === 2 ? 'active' : ''}" title="Round of 16">
+          16
+          <span class="travel-label">R16<span class="travel-stadium">Seattle 🇺🇸</span></span>
+        </div>
+        <div class="travel-node ${progressIndex > 3 ? 'completed' : progressIndex === 3 ? 'active' : ''}" title="Quarter Finals">
+          QF
+          <span class="travel-label">QF<span class="travel-stadium">Miami 🇺🇸</span></span>
+        </div>
+        <div class="travel-node ${progressIndex > 4 ? 'completed' : progressIndex === 4 ? 'active' : ''}" title="Semi Finals">
+          SF
+          <span class="travel-label">SF<span class="travel-stadium">Dallas 🇺🇸</span></span>
+        </div>
+        <div class="travel-node ${progressIndex === 5 ? 'active' : ''}" title="Final">
+          F
+          <span class="travel-label">Final<span class="travel-stadium">New York 🇺🇸</span></span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Render tree style bracket
+  const r32Box = renderBracketMatch('Round of 32', ko.r32, teamName, 'Gillette Stadium, Boston');
+  const r16Box = renderBracketMatch('Round of 16', ko.r16, teamName, 'Lumen Field, Seattle', ko.r32 && ko.r32.win);
+  const qfBox = renderBracketMatch('Quarter Finals', ko.qf, teamName, 'Hard Rock Stadium, Miami', ko.r16 && ko.r16.win);
+  const sfBox = renderBracketMatch('Semi Finals', ko.sf, teamName, 'AT&T Stadium, Dallas', ko.qf && ko.qf.win);
+  const finBox = renderBracketMatch('World Cup Final', ko.fin, teamName, 'MetLife Stadium, New York', ko.sf && ko.sf.win);
+
+  const bracketHtml = `
+    <div class="bracket-container">
+      <div class="bracket-column">${r32Box}</div>
+      <div class="bracket-column">${r16Box}</div>
+      <div class="bracket-column">${qfBox}</div>
+      <div class="bracket-column">${sfBox}</div>
+      <div class="bracket-column">${finBox}</div>
+    </div>
+  `;
 
   const champBanner = ko.champion === teamName
     ? `<div class="champion-banner"><div class="crown">🏆</div><h3>${teamName} WIN THE WORLD CUP!</h3></div>`
@@ -1382,16 +1471,21 @@ async function runJourney(teamName) {
        </div>`;
 
   content.innerHTML = `
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
       ${flag ? `<img style="width:48px;height:32px;border-radius:4px;object-fit:cover" src="${flag}" alt="">` : ''}
       <h3 style="font-size:18px;font-weight:800">${teamName} — Tournament Journey</h3>
     </div>
+    
+    ${travelTrackerHtml}
+    
     <div style="margin-bottom:16px">
       <div style="font-size:12px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Group ${data.group} Matches</div>
       <div class="jrn-group-matches">${groupMatchesHtml || '<p style="color:var(--text-2)">No group matches found</p>'}</div>
     </div>
-    <div style="font-size:12px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Simulated Knockout Path</div>
-    <div class="ko-bracket">${koHtml}</div>
+    
+    <div style="font-size:12px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Simulated Knockout Bracket Path</div>
+    ${bracketHtml}
+    
     ${champBanner}`;
 
   // Journey chart
@@ -1628,8 +1722,244 @@ function updatePitchView() {
       const cpEl = slotEl.querySelector('.slot-player-cp');
       
       const shortName = p.name.split(' ').pop();
-      if (nameEl) nameEl.textContent = `${shortName} (${p.rating})`;
+      const flag = getFlagUrl(p.team);
+      if (nameEl) {
+        nameEl.innerHTML = `${flag ? `<img src="${flag}" style="width:14px; height:9px; border-radius:1px; object-fit:cover; margin-right:4px; vertical-align:middle;">` : ''}${shortName} (${p.rating})`;
+      }
       if (cpEl) cpEl.textContent = `${p.paid_cp} CP`;
     }
   });
+}
+
+/* ══════════════════ AI ASSISTANT CHATBOT ══════════════════ */
+function initChatbot() {
+  const sendBtn = document.getElementById('chat-send-btn');
+  const inputEl = document.getElementById('chat-input');
+  
+  if (sendBtn) {
+    sendBtn.addEventListener('click', sendChatMessage);
+  }
+  if (inputEl) {
+    inputEl.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        sendChatMessage();
+      }
+    });
+  }
+
+  // Suggestions chips click handling
+  const chips = document.querySelectorAll('.chat-chip');
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      const question = chip.dataset.question;
+      if (inputEl) {
+        inputEl.value = question;
+        sendChatMessage();
+      }
+    });
+  });
+}
+
+async function sendChatMessage() {
+  const inputEl = document.getElementById('chat-input');
+  const logEl = document.getElementById('chat-log');
+  if (!inputEl || !logEl) return;
+  
+  const text = inputEl.value.trim();
+  if (!text) return;
+  
+  // Clear input
+  inputEl.value = '';
+  
+  // Append User message
+  const userMsg = document.createElement('div');
+  userMsg.className = 'chat-msg user';
+  userMsg.innerHTML = `<div class="chat-bubble user">${text}</div>`;
+  logEl.appendChild(userMsg);
+  logEl.scrollTop = logEl.scrollHeight;
+  
+  // Append Typing bubble
+  const typingMsg = document.createElement('div');
+  typingMsg.className = 'chat-msg assistant typing';
+  typingMsg.id = 'chat-typing-temp';
+  typingMsg.innerHTML = `<div class="chat-bubble assistant"><div class="spinner" style="border-top-color:var(--accent-2)"></div> Analyzing tactical transitions...</div>`;
+  logEl.appendChild(typingMsg);
+  logEl.scrollTop = logEl.scrollHeight;
+  
+  try {
+    const res = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ message: text })
+    }).then(r => r.json());
+    
+    // Remove typing indicator
+    const temp = document.getElementById('chat-typing-temp');
+    if (temp) temp.remove();
+    
+    // Append Assistant response
+    const assistantMsg = document.createElement('div');
+    assistantMsg.className = 'chat-msg assistant';
+    assistantMsg.innerHTML = `<div class="chat-bubble assistant">${res.response || "No response received."}</div>`;
+    logEl.appendChild(assistantMsg);
+    logEl.scrollTop = logEl.scrollHeight;
+  } catch (err) {
+    console.error('Chat error:', err);
+    const temp = document.getElementById('chat-typing-temp');
+    if (temp) temp.remove();
+    
+    const errMsg = document.createElement('div');
+    errMsg.className = 'chat-msg assistant';
+    errMsg.innerHTML = `<div class="chat-bubble assistant" style="color:var(--red);">Error communicating with the AI. Please try again.</div>`;
+    logEl.appendChild(errMsg);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+}
+
+/* ══════════════════ DAILY TOP PERFORMERS ══════════════════ */
+function renderDailyPerformers(fixtures) {
+  const list = document.getElementById('daily-performers-list');
+  if (!list) return;
+
+  const scorers = [];
+  fixtures.forEach(f => {
+    if (f.scorers && f.scorers.length) {
+      f.scorers.forEach(s => {
+        scorers.push({ name: s.name, team: s.team === 'home' ? f.home : f.away, min: s.min });
+      });
+    }
+  });
+
+  if (scorers.length === 0) {
+    list.innerHTML = '<span style="font-size:11px; color:var(--text-2)">No goals scored on this matchday yet.</span>';
+    return;
+  }
+
+  const counts = {};
+  scorers.forEach(s => {
+    if (!counts[s.name]) {
+      counts[s.name] = { name: s.name, team: s.team, goals: 0 };
+    }
+    counts[s.name].goals++;
+  });
+
+  const sorted = Object.values(counts).sort((a,b) => b.goals - a.goals);
+
+  list.innerHTML = sorted.map(s => {
+    const flag = getFlagUrl(s.team);
+    return `
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:6px 10px; display:flex; align-items:center; gap:8px; font-size:11px;">
+        ${flag ? `<img src="${flag}" style="width:14px; height:10px; border-radius:1px; object-fit:cover;">` : ''}
+        <span style="font-weight:700; color:#fff;">${s.name.split(' ').pop()}</span>
+        <span style="color:var(--accent-2); font-weight:800;">${s.goals}⚽</span>
+      </div>
+    `;
+  }).join('');
+}
+
+/* ══════════════════ PHASE 3 CORE INITIALIZATION FUNCTIONS ══════════════════ */
+function initThemes() {
+  const dots = document.querySelectorAll('.theme-dot');
+  dots.forEach(dot => {
+    dot.addEventListener('click', () => {
+      const theme = dot.dataset.theme;
+      dots.forEach(d => d.classList.remove('active'));
+      dot.classList.add('active');
+      
+      document.body.classList.remove('theme-gold', 'theme-cyber', 'theme-samba', 'theme-frost');
+      document.body.classList.add('theme-' + theme);
+    });
+  });
+  document.body.classList.add('theme-gold');
+}
+
+function initMatchball() {
+  const ball = document.getElementById('header-matchball');
+  if (!ball) return;
+  const classes = ['ball-gold', 'ball-rihla', 'ball-brazuca', 'ball-tango'];
+  let currentIdx = 0;
+  
+  ball.addEventListener('click', () => {
+    ball.classList.remove(...classes);
+    currentIdx = (currentIdx + 1) % classes.length;
+    ball.classList.add(classes[currentIdx]);
+    
+    ball.classList.add('bounce');
+    setTimeout(() => ball.classList.remove('bounce'), 400);
+    
+    const msg = ["Golden Glory 2026", "Al Rihla 2022", "Brazuca 2014", "Tango 1978"][currentIdx];
+    showBallNotification(msg);
+  });
+}
+
+function showBallNotification(name) {
+  let toast = document.getElementById('ball-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'ball-toast';
+    toast.style = 'position:fixed; bottom:20px; right:20px; background:rgba(0,0,0,0.85); color:#fff; border:1px solid var(--accent-2); padding:10px 16px; border-radius:30px; font-size:12px; font-weight:700; z-index:9999; pointer-events:none; transition:all 0.3s; opacity:0; transform:translateY(20px); box-shadow:0 4px 15px rgba(0,0,0,0.5); display:flex; align-items:center; gap:8px;';
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `⚽ Matchball switched to: <span style="color:var(--accent-2)">${name}</span>`;
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateY(0)';
+  
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(20px)';
+  }, 2000);
+}
+
+function renderBracketMatch(roundLabel, roundData, teamName, defaultStadium, parentQualified = true) {
+  if (parentQualified === false) {
+    return `
+      <div class="bracket-match locked">
+        <div class="bm-round-title"><span>${roundLabel}</span> 🔒</div>
+        <div style="font-size:11px; color:var(--text-2); text-align:center; padding:10px 0;">
+          Locked (Eliminated)
+        </div>
+      </div>
+    `;
+  }
+  if (!roundData) {
+    return `
+      <div class="bracket-match locked">
+        <div class="bm-round-title"><span>${roundLabel}</span> ⏳</div>
+        <div style="font-size:11px; color:var(--text-2); text-align:center; padding:10px 0;">
+          TBD (Not reached)
+        </div>
+      </div>
+    `;
+  }
+
+  const isWin = roundData.win;
+  const oppName = roundData.opponent;
+  const teamFlag = getFlagUrl(teamName);
+  const oppFlag = getFlagUrl(oppName);
+  const [teamScore, oppScore] = roundData.score ? roundData.score.split('-') : ['?', '?'];
+
+  return `
+    <div class="bracket-match active-path ${isWin ? '' : 'eliminated'}">
+      <div class="bm-round-title">
+        <span>${roundLabel}</span>
+        <span style="font-size:8px; color:var(--accent-2); font-weight:bold;">${roundData.prob}% Prob</span>
+      </div>
+      <div class="bm-team ${isWin ? 'winner' : ''}">
+        ${teamFlag ? `<img class="bm-team-flag" src="${teamFlag}">` : ''}
+        <span class="bm-team-name">${teamName}</span>
+        <span class="bm-team-score">${teamScore}</span>
+      </div>
+      <div class="bm-team ${!isWin ? 'winner' : ''}">
+        ${oppFlag ? `<img class="bm-team-flag" src="${oppFlag}">` : ''}
+        <span class="bm-team-name">${oppName}</span>
+        <span class="bm-team-score">${oppScore}</span>
+      </div>
+      <div class="bm-meta">
+        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:110px;">📍 ${defaultStadium.split(',')[0]}</span>
+        <span style="color:${isWin?'var(--green)':'var(--red)'}; font-weight:bold;">${isWin?'WIN':'LOST'}</span>
+      </div>
+    </div>
+  `;
 }
