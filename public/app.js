@@ -1021,17 +1021,20 @@ async function runJourney(teamName) {
 
 /* ══════════════════ UTILITIES ══════════════════ */
 function getFlagUrl(teamName) {
+  // Real WC 2026 teams from fixtures CSV
   const iso2Map = {
-    'Algeria':'dz','Argentina':'ar','Australia':'au','Austria':'at','Belgium':'be',
-    'Brazil':'br','Cameroon':'cm','Canada':'ca','Chile':'cl','Colombia':'co',
-    'Costa Rica':'cr','Croatia':'hr','Denmark':'dk','Ecuador':'ec','Egypt':'eg',
-    'England':'gb-eng','France':'fr','Germany':'de','Ghana':'gh','Iran':'ir',
-    'Iraq':'iq','Italy':'it','Jamaica':'jm','Japan':'jp','Mexico':'mx',
-    'Morocco':'ma','Netherlands':'nl','Nigeria':'ng','Panama':'pa','Peru':'pe',
-    'Poland':'pl','Portugal':'pt','Qatar':'qa','Saudi Arabia':'sa','Scotland':'gb-sct',
-    'Senegal':'sn','Serbia':'rs','South Africa':'za','South Korea':'kr','Spain':'es',
-    'Sweden':'se','Switzerland':'ch','Tunisia':'tn','Turkey':'tr','Ukraine':'ua',
-    'United States':'us','Uruguay':'uy','Uzbekistan':'uz'
+    'Mexico':'mx','South Africa':'za','Korea Republic':'kr','Czechia':'cz',
+    'Canada':'ca','Bosnia and Herzegovina':'ba','Qatar':'qa','Switzerland':'ch',
+    'Brazil':'br','Haiti':'ht','Morocco':'ma','Scotland':'gb-sct',
+    'United States':'us','Paraguay':'py','Australia':'au','Turkiye':'tr',
+    'Germany':'de','Ecuador':'ec',"Cote d'Ivoire":'ci','Curacao':'cw',
+    'Netherlands':'nl','Japan':'jp','Sweden':'se','Tunisia':'tn',
+    'Belgium':'be','Egypt':'eg','IR Iran':'ir','New Zealand':'nz',
+    'Spain':'es','Saudi Arabia':'sa','Uruguay':'uy','Cabo Verde':'cv',
+    'France':'fr','Iraq':'iq','Norway':'no','Senegal':'sn',
+    'Argentina':'ar','Algeria':'dz','Austria':'at','Jordan':'jo',
+    'Colombia':'co','Portugal':'pt','Uzbekistan':'uz','Congo DR':'cd',
+    'Croatia':'hr','England':'gb-eng','Ghana':'gh','Panama':'pa',
   };
   const iso = iso2Map[teamName];
   return iso ? `https://flagcdn.com/w40/${iso}.png` : null;
