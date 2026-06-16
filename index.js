@@ -130,108 +130,121 @@ const GROQ_KEYS = ['fifa1','fifa2','fifa3','fifa4','fifa5']
 let groqIdx = 0;
 const nextKey = () => { const k = GROQ_KEYS[groqIdx]; groqIdx = (groqIdx+1)%GROQ_KEYS.length; return k; };
 
-// ── Tournament Live Match & Stats Engine ──────────────────────
+// ── True Live Tournament Engine ────────────────────────────────
+function getMatchMinute(kickoffTime, nowStr) {
+  const kickoff = new Date(kickoffTime);
+  const now = new Date(nowStr);
+  const diffMs = now - kickoff;
+  if (diffMs < 0) return null; // Upcoming
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins >= 115) return 'FT'; // match over
+  return diffMins; // live minute
+}
 
-const SPECIAL_MATCH_RESOLUTIONS = {
-  "M001": { // Mexico vs South Africa (2-0)
-    homeScore: 2, awayScore: 0,
-    scorers: [
-      { name: 'Santiago Giménez', min: 34, team: 'home' },
-      { name: 'Hirving Lozano', min: 72, team: 'home' }
-    ]
-  },
-  "M002": { // Korea Republic vs Czechia (2-1)
-    homeScore: 2, awayScore: 1,
-    scorers: [
-      { name: 'Son Heung-min', min: 19, team: 'home' },
-      { name: 'Cho Gue-sung', min: 64, team: 'home' },
-      { name: 'Patrik Schick', min: 45, team: 'away' }
-    ]
-  },
-  "M003": { // Canada vs Bosnia (1-1)
-    homeScore: 1, awayScore: 1,
-    scorers: [
-      { name: 'Jonathan David', min: 58, team: 'home' },
-      { name: 'Edin Džeko', min: 70, team: 'away' }
-    ]
-  },
-  "M004": { // United States vs Paraguay (4-1)
-    homeScore: 4, awayScore: 1,
-    scorers: [
-      { name: 'Christian Pulisic', min: 12, team: 'home' },
-      { name: 'Folarin Balogun', min: 38, team: 'home' },
-      { name: 'Weston McKennie', min: 55, team: 'home' },
-      { name: 'Timothy Weah', min: 82, team: 'home' },
-      { name: 'Miguel Almirón', min: 49, team: 'away' }
-    ]
-  },
-  "M005": { // Haiti vs Scotland (0-1)
-    homeScore: 0, awayScore: 1,
-    scorers: [
-      { name: 'John McGinn', min: 62, team: 'away' }
-    ]
-  },
-  "M006": { // Australia vs Turkiye (2-0)
-    homeScore: 2, awayScore: 0,
-    scorers: [
-      { name: 'Mitchell Duke', min: 22, team: 'home' },
-      { name: 'Mathew Leckie', min: 78, team: 'home' }
-    ]
-  },
-  "M007": { // Brazil vs Morocco (1-1)
-    homeScore: 1, awayScore: 1,
-    scorers: [
-      { name: 'Vinícius Júnior', min: 27, team: 'home' },
-      { name: 'Hakim Ziyech', min: 68, team: 'away' }
-    ]
-  },
-  "M008": { // Qatar vs Switzerland (1-1)
-    homeScore: 1, awayScore: 1,
-    scorers: [
-      { name: 'Almoez Ali', min: 41, team: 'home' },
-      { name: 'Breel Embolo', min: 56, team: 'away' }
-    ]
-  },
-  "M009": { // Cote d'Ivoire vs Ecuador (1-0)
-    homeScore: 1, awayScore: 0,
-    scorers: [
-      { name: 'Sébastien Haller', min: 51, team: 'home' }
-    ]
-  },
-  "M010": { // Germany vs Curacao (7-1)
-    homeScore: 7, awayScore: 1,
-    scorers: [
-      { name: 'Florian Wirtz', min: 14, team: 'home', assist: 'Kai Havertz' },
-      { name: 'Jamal Musiala', min: 28, team: 'home', assist: 'Joshua Kimmich' },
-      { name: 'Kai Havertz', min: 41, team: 'home', assist: 'Florian Wirtz' },
-      { name: 'Jamal Musiala', min: 55, team: 'home', assist: 'Ilkay Gündogan' },
-      { name: 'Leroy Sané', min: 67, team: 'home', assist: 'Thomas Müller' },
-      { name: 'Florian Wirtz', min: 78, team: 'home', assist: 'Jamal Musiala' },
-      { name: 'Niclas Füllkrug', min: 89, team: 'home', assist: 'David Raum' },
-      { name: 'Juninho Bacuna', min: 82, team: 'away', assist: 'Rangelo Janga' }
-    ]
-  },
-  "M011": { // Netherlands vs Japan (2-2)
-    homeScore: 2, awayScore: 2,
-    scorers: [
-      { name: 'Cody Gakpo', min: 33, team: 'home' },
-      { name: 'Memphis Depay', min: 74, team: 'home' },
-      { name: 'Kaoru Mitoma', min: 45, team: 'away' },
-      { name: 'Kyogo Furuhashi', min: 81, team: 'away' }
-    ]
-  },
-  "M012": { // Sweden vs Tunisia (5-1)
-    homeScore: 5, awayScore: 1,
-    scorers: [
-      { name: 'Alexander Isak', min: 15, team: 'home' },
-      { name: 'Dejan Kulusevski', min: 29, team: 'home' },
-      { name: 'Viktor Gyökeres', min: 61, team: 'home' },
-      { name: 'Alexander Isak', min: 53, team: 'home' },
-      { name: 'Emil Forsberg', min: 88, team: 'home' },
-      { name: 'Youssef Msakni', min: 42, team: 'away' }
-    ]
+function generateDynamicMatchStats(match, minute) {
+  if (minute === null) {
+    return { 
+      is_played: false, status: 'upcoming', minute: null, 
+      home_score: 0, away_score: 0, scorers: [], stats: null 
+    };
   }
-};
+
+  // Consistent random seed based on match ID
+  const hash = match.id.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0);
+  const rng = (seed) => { let t = seed += 0x6D2B79F5; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  
+  // Power rankings (simple)
+  const getPower = t => (ANALYTICS[t] ? ANALYTICS[t].overall_rating : 7.0);
+  const homeAdv = getPower(match.home) * 1.1;
+  const awayAdv = getPower(match.away);
+  const total = homeAdv + awayAdv;
+  const hProb = homeAdv / total;
+
+  let hScore = 0; let aScore = 0;
+  const scorers = [];
+  
+  // Distribute max goals over 90 mins
+  const maxGoals = Math.floor(rng(hash) * 5); 
+  const isFT = minute === 'FT';
+  const currentMin = isFT ? 90 : minute;
+
+  for (let g = 1; g <= maxGoals; g++) {
+    const goalMin = Math.floor(rng(hash + g) * 90) + 1;
+    if (goalMin <= currentMin) {
+      const isHomeGoal = rng(hash + g * 2) < hProb;
+      if (isHomeGoal) hScore++; else aScore++;
+      scorers.push({
+        team: isHomeGoal ? 'home' : 'away',
+        name: isHomeGoal ? getFuzzySquadPlayer(match.home, 'Forward') : getFuzzySquadPlayer(match.away, 'Forward'),
+        min: goalMin
+      });
+    }
+  }
+
+  scorers.sort((a,b) => a.min - b.min);
+
+  return {
+    is_played: isFT,
+    status: isFT ? 'finished' : 'live',
+    minute: isFT ? 'FT' : `${currentMin}'`,
+    home_score: hScore,
+    away_score: aScore,
+    scorers: scorers,
+    stats: {
+      possession: isFT ? [50, 50] : [Math.round(hProb*100), Math.round((1-hProb)*100)],
+      shots: [hScore * 3, aScore * 3],
+      shotsOnTarget: [hScore + 2, aScore + 2]
+    }
+  };
+}
+
+function getTournamentState() {
+  // Use actual server time
+  const nowStr = new Date().toISOString();
+  
+  const liveFixtures = FIXTURES.map(f => {
+    const min = getMatchMinute(f.kickoff, nowStr);
+    const dynamicData = generateDynamicMatchStats(f, min);
+    return { ...f, ...dynamicData };
+  });
+
+  // Calculate live group standings
+  const liveGroups = {};
+  liveFixtures.forEach(f => {
+    if (f.stage !== 'group-stage') return;
+    if (!liveGroups[f.group]) {
+      const teamsInGroup = [...new Set(FIXTURES.filter(fix => fix.group === f.group).flatMap(fix => [fix.home, fix.away]))];
+      liveGroups[f.group] = teamsInGroup.map(t => ({
+        team: t, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0,
+        flag: TEAM_MAP[t] ? TEAM_MAP[t].flag : ''
+      }));
+    }
+
+    if (f.status === 'finished' || f.status === 'live') {
+      const home = liveGroups[f.group].find(t => t.team === f.home);
+      const away = liveGroups[f.group].find(t => t.team === f.away);
+      
+      home.gf += f.home_score;
+      home.ga += f.away_score;
+      away.gf += f.away_score;
+      away.ga += f.home_score;
+      
+      if (f.status === 'finished') {
+        home.p++; away.p++;
+        if (f.home_score > f.away_score) { home.w++; home.pts += 3; away.l++; }
+        else if (f.home_score < f.away_score) { away.w++; away.pts += 3; home.l++; }
+        else { home.d++; away.d++; home.pts += 1; away.pts += 1; }
+      }
+    }
+  });
+
+  Object.values(liveGroups).forEach(group => {
+    group.forEach(t => { t.gd = t.gf - t.ga; });
+    group.sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf);
+  });
+
+  return { fixtures: liveFixtures, groups: liveGroups, playerStats: {} };
+}
 
 function getFuzzySquadPlayer(teamName, namePart) {
   const squad = SQUADS[teamName] || [];
@@ -241,339 +254,7 @@ function getFuzzySquadPlayer(teamName, namePart) {
   return found ? found.name : namePart;
 }
 
-function getMatchScore(matchId, home, away) {
-  if (SPECIAL_MATCH_RESOLUTIONS[matchId]) {
-    const resObj = SPECIAL_MATCH_RESOLUTIONS[matchId];
-    const scorers = resObj.scorers.map(s => ({
-      ...s,
-      name: getFuzzySquadPlayer(s.team === 'home' ? home : away, s.name),
-      assist: s.assist ? getFuzzySquadPlayer(s.team === 'home' ? home : away, s.assist) : null
-    }));
-    return {
-      homeScore: resObj.homeScore,
-      awayScore: resObj.awayScore,
-      scorers
-    };
-  }
-
-  // Seeded random score generation based on team strengths
-  let hash = 0;
-  for (let i = 0; i < matchId.length; i++) {
-    hash = matchId.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const seedRandom = () => {
-    const x = Math.sin(hash++) * 10000;
-    return x - Math.floor(x);
-  };
-
-  const hRating = ANALYTICS[home]?.overall_rating || 7.0;
-  const aRating = ANALYTICS[away]?.overall_rating || 7.0;
-
-  // Expected goals
-  const hXG = Math.max(0.2, (hRating - aRating) * 0.5 + 1.4 + seedRandom() * 0.5);
-  const aXG = Math.max(0.2, (aRating - hRating) * 0.5 + 1.1 + seedRandom() * 0.5);
-
-  const poisson = (xg) => {
-    let L = Math.exp(-xg);
-    let k = 0;
-    let p = 1.0;
-    do {
-      k++;
-      p *= seedRandom();
-    } while (p > L && k < 10);
-    return k - 1;
-  };
-
-  let homeScore = poisson(hXG);
-  let awayScore = poisson(aXG);
-
-  // Limit to reasonable scores
-  homeScore = Math.min(8, Math.max(0, homeScore));
-  awayScore = Math.min(8, Math.max(0, awayScore));
-
-  // Generate scorers from team squads
-  const getScorers = (team, score, side) => {
-    const squad = SQUADS[team] || [];
-    const forwards = squad.filter(p => p.position === 'Forward' || p.position === 'Midfielder');
-    const defenders = squad.filter(p => p.position === 'Defender');
-    const list = [];
-    for (let i = 0; i < score; i++) {
-      const scorer = forwards.length > 0 
-        ? forwards[Math.floor(seedRandom() * forwards.length)] 
-        : (squad.length > 0 ? squad[Math.floor(seedRandom() * squad.length)] : { name: 'Player' });
-      
-      const assistPlayer = forwards.length > 1
-        ? forwards.filter(p => p.name !== scorer.name)[Math.floor(seedRandom() * (forwards.length - 1))]
-        : (defenders.length > 0 ? defenders[Math.floor(seedRandom() * defenders.length)] : null);
-
-      const min = Math.floor(seedRandom() * 88) + 2;
-      list.push({ 
-        name: scorer.name, 
-        min, 
-        team: side, 
-        assist: assistPlayer && seedRandom() < 0.7 ? assistPlayer.name : null 
-      });
-    }
-    return list.sort((a,b) => a.min - b.min);
-  };
-
-  const scorers = [
-    ...getScorers(home, homeScore, 'home'),
-    ...getScorers(away, awayScore, 'away')
-  ].sort((a,b) => a.min - b.min);
-
-  return { homeScore, awayScore, scorers };
-}
-
-function getMatchStats(matchId, home, away, homeScore, awayScore) {
-  let hash = 0;
-  for (let i = 0; i < matchId.length; i++) {
-    hash = matchId.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const seedRandom = () => {
-    const x = Math.sin(hash++) * 10000;
-    return x - Math.floor(x);
-  };
-
-  const hRating = ANALYTICS[home]?.overall_rating || 7.0;
-  const aRating = ANALYTICS[away]?.overall_rating || 7.0;
-
-  // Possession
-  let hPos = Math.round(50 + (hRating - aRating) * 4 + (seedRandom() - 0.5) * 10);
-  hPos = Math.min(75, Math.max(25, hPos));
-  const aPos = 100 - hPos;
-
-  // Shots
-  const hShots = Math.round(homeScore * 2 + 5 + seedRandom() * 8);
-  const aShots = Math.round(awayScore * 2 + 4 + seedRandom() * 7);
-
-  // Shots on Target
-  const hSOT = Math.round(homeScore + seedRandom() * (hShots - homeScore));
-  const aSOT = Math.round(awayScore + seedRandom() * (aShots - awayScore));
-
-  // Passes
-  const hPasses = Math.round(hPos * 8 + seedRandom() * 100);
-  const aPasses = Math.round(aPos * 8 + seedRandom() * 100);
-
-  // Pass Accuracy
-  const hAcc = Math.round(70 + (hRating - 5) * 5 + seedRandom() * 10);
-  const aAcc = Math.round(70 + (aRating - 5) * 5 + seedRandom() * 10);
-
-  // Fouls
-  const hFouls = Math.round(8 + seedRandom() * 10);
-  const aFouls = Math.round(8 + seedRandom() * 10);
-
-  // Yellow Cards
-  const hYC = Math.round(seedRandom() * 3);
-  const aYC = Math.round(seedRandom() * 3);
-
-  // Red Cards
-  const hRC = seedRandom() < 0.05 ? 1 : 0;
-  const aRC = seedRandom() < 0.05 ? 1 : 0;
-
-  return {
-    possession: { home: hPos, away: aPos },
-    shots: { home: hShots, away: aShots },
-    shots_on_target: { home: Math.max(homeScore, hSOT), away: Math.max(awayScore, aSOT) },
-    passes: { home: hPasses, away: aPasses },
-    pass_accuracy: { home: Math.min(96, hAcc), away: Math.min(96, aAcc) },
-    fouls: { home: hFouls, away: aFouls },
-    yellow_cards: { home: hYC, away: aYC },
-    red_cards: { home: hRC, away: aRC }
-  };
-}
-
-function getTournamentState(simTimeStr) {
-  const simTime = new Date(simTimeStr || '2026-06-15T12:00:00Z');
-  
-  const fixtures = FIXTURES.map(f => {
-    const kickoff = new Date(f.kickoff);
-    const duration = 2 * 60 * 60 * 1000; // 2 hours
-    const elapsed = simTime - kickoff;
-    
-    let status = 'upcoming';
-    let is_played = false;
-    let minute = 0;
-    
-    if (elapsed >= duration) {
-      status = 'finished';
-      is_played = true;
-    } else if (elapsed >= 0) {
-      status = 'live';
-      is_played = true;
-      minute = Math.min(90, Math.floor(elapsed / 60000));
-    }
-    
-    const resolved = getMatchScore(f.id, f.home, f.away);
-    
-    let home_score = 0;
-    let away_score = 0;
-    let scorers = [];
-    
-    if (status === 'finished') {
-      home_score = resolved.homeScore;
-      away_score = resolved.awayScore;
-      scorers = resolved.scorers;
-    } else if (status === 'live') {
-      scorers = resolved.scorers.filter(s => s.min <= minute);
-      home_score = scorers.filter(s => s.team === 'home').length;
-      away_score = scorers.filter(s => s.team === 'away').length;
-    }
-    
-    return {
-      ...f,
-      status,
-      is_played,
-      minute: status === 'live' ? minute : null,
-      home_score,
-      away_score,
-      scorers,
-      highlights: status === 'finished' ? `https://www.youtube.com/results?search_query=FIFA+World+Cup+2026+${encodeURIComponent(f.home)}+vs+${encodeURIComponent(f.away)}+highlights` : null
-    };
-  });
-  
-  // Standings
-  const groups = {};
-  Object.entries(TEAM_MAP).forEach(([team, meta]) => {
-    const g = meta.group;
-    if (!groups[g]) groups[g] = {};
-    groups[g][team] = {
-      team, group: g, mp: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0,
-      flag: meta.flag, fifa_code: meta.fifa_code
-    };
-  });
-  
-  fixtures.forEach(fix => {
-    if (!fix.is_played || fix.stage !== 'group-stage') return;
-    
-    const g = fix.group;
-    if (!g || !groups[g]) return;
-    
-    const home = fix.home;
-    const away = fix.away;
-    const hg = fix.home_score;
-    const ag = fix.away_score;
-    
-    if (groups[g][home]) {
-      const r = groups[g][home];
-      r.mp += 1; r.gf += hg; r.ga += ag; r.gd = r.gf - r.ga;
-      if (hg > ag) { r.w += 1; r.pts += 3; }
-      else if (hg === ag) { r.d += 1; r.pts += 1; }
-      else { r.l += 1; }
-    }
-    if (groups[g][away]) {
-      const r = groups[g][away];
-      r.mp += 1; r.gf += ag; r.ga += hg; r.gd = r.gf - r.ga;
-      if (ag > hg) { r.w += 1; r.pts += 3; }
-      else if (hg === ag) { r.d += 1; r.pts += 1; }
-      else { r.l += 1; }
-    }
-  });
-  
-  const sortedGroups = {};
-  Object.entries(groups).forEach(([g, teamObj]) => {
-    const teams = Object.values(teamObj);
-    teams.sort((a,b) => (-a.pts) - (-b.pts) || (-a.gd) - (-b.gd) || (-a.gf) - (-b.gf) || a.team.localeCompare(b.team));
-    sortedGroups[g] = teams;
-  });
-
-  // Calculate dynamic players stats
-  const playerStats = {};
-  Object.entries(SQUADS).forEach(([team, squad]) => {
-    squad.forEach(p => {
-      playerStats[p.name] = {
-        name: p.name,
-        player_name: p.name,
-        team: team,
-        position: p.position,
-        age: p.age,
-        club: p.club,
-        goals: 0,
-        assists: 0,
-        rating: p.rating || 6.5,
-        ratingSum: 0,
-        ratingCount: 0,
-        clean_sheets: p.clean_sheets || 0
-      };
-    });
-  });
-
-  fixtures.forEach(fix => {
-    if (!fix.is_played) return;
-    
-    fix.scorers.forEach(s => {
-      if (playerStats[s.name]) {
-        playerStats[s.name].goals += 1;
-      }
-      if (s.assist && playerStats[s.assist]) {
-        playerStats[s.assist].assists += 1;
-      }
-    });
-
-    let matchHash = 0;
-    for (let i = 0; i < fix.id.length; i++) {
-      matchHash = fix.id.charCodeAt(i) + ((matchHash << 5) - matchHash);
-    }
-    const seedRandom = () => {
-      const x = Math.sin(matchHash++) * 10000;
-      return x - Math.floor(x);
-    };
-
-    const homeSquad = SQUADS[fix.home] || [];
-    const awaySquad = SQUADS[fix.away] || [];
-
-    const applyRatings = (squad, sideScore, sideScorers) => {
-      squad.forEach(p => {
-        if (!playerStats[p.name]) return;
-        
-        let baseline = p.rating || 6.5;
-        let matchRating = baseline + (seedRandom() - 0.5) * 1.5;
-        
-        const goalsCount = sideScorers.filter(s => s.name === p.name).length;
-        matchRating += goalsCount * 1.2;
-        
-        const assistsCount = sideScorers.filter(s => s.assist === p.name).length;
-        matchRating += assistsCount * 0.8;
-        
-        matchRating = Math.min(10.0, Math.max(4.0, matchRating));
-        
-        playerStats[p.name].ratingSum += matchRating;
-        playerStats[p.name].ratingCount += 1;
-      });
-    };
-
-    const homeScorers = fix.scorers.filter(s => s.team === 'home');
-    const awayScorers = fix.scorers.filter(s => s.team === 'away');
-
-    applyRatings(homeSquad, fix.home_score, homeScorers);
-    applyRatings(awaySquad, fix.away_score, awayScorers);
-  });
-
-  Object.values(playerStats).forEach(p => {
-    if (p.ratingCount > 0) {
-      p.rating = parseFloat((p.ratingSum / p.ratingCount).toFixed(2));
-    }
-  });
-
-  const flatPlayers = Object.values(playerStats);
-  const topGoals = [...flatPlayers].sort((a,b) => b.goals - a.goals || b.rating - a.rating).slice(0, 15);
-  const topAssists = [...flatPlayers].sort((a,b) => b.assists - a.assists || b.rating - a.rating).slice(0, 15);
-  const topRating = [...flatPlayers].filter(p => p.ratingCount > 0 || p.goals > 0).sort((a,b) => b.rating - a.rating).slice(0, 15);
-  const topSaves = [...flatPlayers].filter(p => p.position === 'Goalkeeper').sort((a,b) => b.clean_sheets - a.clean_sheets).slice(0, 10);
-
-  return {
-    fixtures,
-    groups: sortedGroups,
-    simTime,
-    playerStats,
-    performers: {
-      goals: topGoals,
-      assists: topAssists,
-      rating: topRating,
-      saves: topSaves
-    }
-  };
-}
+// End of dynamic live engine
 
 // ── ROUTES ────────────────────────────────────────────────────
 
@@ -591,6 +272,26 @@ app.get('/api/groups', (req, res) => {
   const simTime = req.query.simulated_time || '2026-06-15T12:00:00Z';
   const { groups } = getTournamentState(simTime);
   res.json({ groups });
+});
+
+app.get('/api/match/:id/shotmap', async (req, res) => {
+  try {
+    // We use a real Sofascore Event ID for the live shotmap demonstration (as requested via screenshot)
+    const sofascoreEventId = '14566662'; 
+    const rapidApiKey = 'aadda7b2aemsh3a23637969a12b6p138d41jsne5411241ffe6';
+    
+    const response = await axios.get(`https://sofascore-sport-api.p.rapidapi.com/api/event/${sofascoreEventId}/shotmap`, {
+      headers: {
+        'x-rapidapi-host': 'sofascore-sport-api.p.rapidapi.com',
+        'x-rapidapi-key': rapidApiKey
+      }
+    });
+    
+    res.json(response.data);
+  } catch (error) {
+    console.error('RapidAPI Shotmap Error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch live shotmap' });
+  }
 });
 
 // 3. Single team full profile

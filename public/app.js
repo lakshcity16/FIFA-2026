@@ -107,47 +107,8 @@ async function fetchPerformers() {
 
 /* ══════════════════ TIME MACHINE ══════════════════ */
 function initTimeMachine() {
-  const slider = document.getElementById('tm-slider');
-  const playBtn = document.getElementById('tm-play-btn');
-  
-  if (slider) {
-    slider.addEventListener('input', e => {
-      const val = parseInt(e.target.value);
-      setDateFromSliderValue(val);
-    });
-  }
-  
-  if (playBtn) {
-    playBtn.addEventListener('click', () => {
-      _tmIsPlaying = !_tmIsPlaying;
-      playBtn.textContent = _tmIsPlaying ? '⏸' : '▶';
-      playBtn.classList.toggle('playing', _tmIsPlaying);
-      if (_tmIsPlaying) {
-        startTimeMachineLoop();
-      } else {
-        if (_tmInterval) clearInterval(_tmInterval);
-      }
-    });
-  }
-  
-  // Sync slider to real-world date on init
-  if (slider) {
-    const base = new Date('2026-06-11T12:00:00Z');
-    const diffDays = Math.floor((_simulatedDate - base) / (24 * 60 * 60 * 1000));
-    slider.value = Math.max(0, Math.min(38, diffDays));
-  }
-
   updateTimeMachineUI();
   setInterval(updateTimeMachineUI, 1000);
-}
-
-function setDateFromSliderValue(val) {
-  const baseDate = new Date('2026-06-11T12:00:00Z');
-  baseDate.setUTCDate(baseDate.getUTCDate() + val);
-  baseDate.setUTCHours(23, 59, 0, 0); // End of day so matches show as played
-  _simulatedDate = baseDate;
-  updateTimeMachineUI();
-  triggerTimeRefresh();
 }
 
 function updateTimeMachineUI() {
@@ -577,10 +538,11 @@ async function openMatchCenter(matchId) {
     ${h2hHtml}
 
     <div class="match-modal-tabs" style="margin-top: 20px;">
-      <button class="match-modal-tab active">Statistics</button>
+      <button class="match-modal-tab active" id="tab-stats" onclick="switchMatchTab('stats')">Statistics</button>
+      <button class="match-modal-tab" id="tab-shotmap" style="border:1px solid #16a085; background:rgba(22, 160, 133, 0.1); color:#1abc9c;" onclick="switchMatchTab('shotmap', '${match.id}')">Live Shotmap (RapidAPI)</button>
     </div>
 
-    <div class="match-stats-grid">
+    <div id="match-stats-pane" class="match-stats-grid">
       ${statRow('Possession', stats.possession.home, stats.possession.away, true)}
       ${statRow('Total Shots', stats.shots.home, stats.shots.away)}
       ${statRow('Shots on Target', stats.shots_on_target.home, stats.shots_on_target.away)}
@@ -590,7 +552,62 @@ async function openMatchCenter(matchId) {
       ${statRow('Yellow Cards', stats.yellow_cards.home, stats.yellow_cards.away)}
       ${statRow('Red Cards', stats.red_cards.home, stats.red_cards.away)}
     </div>
+    
+    <div id="match-shotmap-pane" style="display:none; position:relative; margin-top:20px; text-align:center;">
+       <div style="font-size:11px; color:var(--text-2); margin-bottom:10px;">Powered by Sofascore Sport API via RapidAPI</div>
+       <div id="shotmap-container" style="position:relative; width:100%; max-width:400px; height:260px; margin:auto; background:#22a6b3; border:2px solid var(--border); border-radius:8px; overflow:hidden;">
+          <!-- Pitch Lines -->
+          <div style="position:absolute; top:0; bottom:0; left:50%; border-left:2px solid rgba(255,255,255,0.3);"></div>
+          <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:60px; height:60px; border:2px solid rgba(255,255,255,0.3); border-radius:50%;"></div>
+          <!-- Penalty Areas -->
+          <div style="position:absolute; top:20%; bottom:20%; left:0; width:15%; border:2px solid rgba(255,255,255,0.3); border-left:none;"></div>
+          <div style="position:absolute; top:20%; bottom:20%; right:0; width:15%; border:2px solid rgba(255,255,255,0.3); border-right:none;"></div>
+          <div id="shotmap-dots"></div>
+       </div>
+    </div>
   `;
+}
+
+window.switchMatchTab = async function(tab, matchId) {
+  document.getElementById('tab-stats').classList.toggle('active', tab === 'stats');
+  document.getElementById('tab-shotmap').classList.toggle('active', tab === 'shotmap');
+  document.getElementById('match-stats-pane').style.display = tab === 'stats' ? 'grid' : 'none';
+  document.getElementById('match-shotmap-pane').style.display = tab === 'shotmap' ? 'block' : 'none';
+
+  if (tab === 'shotmap') {
+    const container = document.getElementById('shotmap-dots');
+    container.innerHTML = '<div style="padding:20px; color:white; font-weight:bold; font-size:14px; margin-top:100px;">Fetching Live Shotmap from RapidAPI...</div>';
+    
+    try {
+      const res = await $get(`/api/match/${matchId}/shotmap`);
+      const shots = res.shotmap || [];
+      if (shots.length === 0) {
+        container.innerHTML = '<div style="padding:20px; color:white; font-size:12px; margin-top:100px;">No shotmap data available yet.</div>';
+        return;
+      }
+      
+      container.innerHTML = shots.map(shot => {
+        // Sofascore coordinates: X is 0 to 100 (width), Y is 0 to 100 (height)
+        let x = shot.playerCoordinates ? shot.playerCoordinates.x : 50;
+        let y = shot.playerCoordinates ? shot.playerCoordinates.y : 50;
+        // Adjust for home/away sides (simplistic mapping)
+        if (!shot.isHome) x = 100 - x;
+        
+        const color = shot.shotType === 'goal' ? '#2ecc71' : shot.shotType === 'save' ? '#f39c12' : '#e74c3c';
+        const icon = shot.shotType === 'goal' ? '⚽' : '•';
+        const size = shot.shotType === 'goal' ? '18px' : '14px';
+        
+        return `<div style="position:absolute; top:${y}%; left:${x}%; transform:translate(-50%, -50%); 
+                     color:${color}; font-size:${size}; text-shadow:0 0 3px #000;" 
+                     title="${shot.player?.name || 'Player'} - ${shot.shotType}">
+                  ${icon}
+                </div>`;
+      }).join('');
+      
+    } catch (e) {
+      container.innerHTML = '<div style="padding:20px; color:var(--red); font-size:12px; margin-top:100px;">Failed to load RapidAPI shotmap.</div>';
+    }
+  }
 }
 
 function renderFixtureList(fixtures, container) {
