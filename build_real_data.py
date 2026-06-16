@@ -131,14 +131,36 @@ def sim_score(home, away, team_meta):
     if away in strong and ag < 1: ag = min(3, ag + random.choice([0,1]))
     return hg, ag
 
+REAL_SCORES = {
+    1: (2, 0),  # Mexico vs South Africa
+    2: (2, 1),  # Korea Republic vs Czechia
+    3: (1, 1),  # Canada vs Bosnia and Herzegovina
+    4: (4, 1),  # United States vs Paraguay
+    5: (0, 1),  # Haiti vs Scotland
+    6: (2, 0),  # Australia vs Turkiye
+    7: (1, 1),  # Brazil vs Morocco
+    8: (1, 1),  # Qatar vs Switzerland
+    9: (1, 0),  # Cote d'Ivoire vs Ecuador
+    10: (7, 1), # Germany vs Curacao
+    11: (2, 2), # Netherlands vs Japan
+    12: (5, 1), # Sweden vs Tunisia
+    13: (1, 1), # Saudi Arabia vs Uruguay
+    14: (0, 0), # Spain vs Cabo Verde
+    15: (2, 2), # IR Iran vs New Zealand
+    16: (1, 1), # Belgium vs Egypt
+}
+
 fixtures_out = []
 for _, row in fx.iterrows():
     home = row['home_team']
     away = row['away_team']
     date = str(row['date'])
+    match_num = int(row['match_number'])
     is_played = date <= CURRENT_DATE and row['stage'] == 'group-stage'
-    # Only simulate group stage matches on/before June 15
-    if is_played:
+    # Use real scores for matches M001-M016, otherwise simulate if played
+    if match_num in REAL_SCORES:
+        hg, ag = REAL_SCORES[match_num]
+    elif is_played:
         hg, ag = sim_score(home, away, TEAM_META)
     else:
         hg, ag = 0, 0
