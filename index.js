@@ -31,28 +31,52 @@ const TEAM_MAP = load('team_map.json');
 // ── Load real WC 2026 player stats from CSV ──────────────────
 const CSV_PLAYERS = (() => {
   try {
-    const csvPath = path.join(__dirname, 'international-world-cup-players-2026-to-2026-stats.csv');
-    const lines = fs.readFileSync(csvPath, 'utf8').split('\n');
+    const csvPath = path.join(__dirname, 'SquadLists.csv');
+    const raw = fs.readFileSync(csvPath, 'utf8').replace(/^\uFEFF/, '').replace(/\r/g, '');
+    const lines = raw.split('\n');
     const headers = lines[0].split(',');
     const idx = h => headers.indexOf(h);
+    
     return lines.slice(1).filter(l => l.trim()).map(l => {
-      const v = l.split(',');
+      // proper CSV split
+      const v = [];
+      let current = '';
+      let inQuotes = false;
+      for(let i=0; i<l.length; i++){
+        if(l[i] === '"' && l[i+1] === '"') { current += '"'; i++; }
+        else if(l[i] === '"') { inQuotes = !inQuotes; }
+        else if(l[i] === ',' && !inQuotes) { v.push(current); current = ''; }
+        else { current += l[i]; }
+      }
+      v.push(current);
+      
+      const dobStr = v[idx('DOB')] || '';
+      let age = 0;
+      if (dobStr) {
+        const year = parseInt(dobStr.split('/')[2]);
+        if (year) age = 2026 - year;
+      }
+      
+      const caps = parseInt(v[idx('Caps')]) || 0;
+      const goals = parseInt(v[idx('Goals')]) || 0;
+      
+      let rating = 6.0 + (caps * 0.015) + (goals * 0.03);
+      if (rating > 9.8) rating = 9.8;
+      
       return {
-        name: v[idx('full_name')],
-        team: v[idx('nationality')],
-        position: v[idx('position')],
-        age: parseInt(v[idx('age')]) || 0,
-        rating: parseFloat(v[idx('average_rating_overall')]) || 0,
-        goals: parseInt(v[idx('goals_overall')]) || 0,
-        assists: parseInt(v[idx('assists_overall')]) || 0,
-        minutes: parseInt(v[idx('minutes_played_overall')]) || 0,
-        xg: parseFloat(v[idx('xg_total_overall')]) || 0,
-        goals_per90: parseFloat(v[idx('goals_per_90_overall')]) || 0,
-        assists_per90: parseFloat(v[idx('assists_per_90_overall')]) || 0,
-        pass_acc: parseFloat(v[idx('pass_completion_rate_overall')]) || 0,
-        club: v[idx('Current Club')]
+        name: v[idx('Player Name')] || v[idx('Name on Shirt')],
+        team: v[idx('Team')],
+        position: v[idx('Position')],
+        age: age,
+        rating: parseFloat(rating.toFixed(2)),
+        goals: goals,
+        assists: Math.floor(goals * 0.6), // mock assists based on goals
+        minutes: caps * 60, // mock minutes based on caps
+        xg: parseFloat((goals * 0.8).toFixed(2)),
+        club: v[idx('Club')],
+        caps: caps
       };
-    }).filter(r => r.rating > 0 && r.name);
+    }).filter(r => r.name && r.team);
   } catch(e) {
     console.error('CSV load error:', e.message);
     return [];
@@ -60,6 +84,36 @@ const CSV_PLAYERS = (() => {
 })();
 console.log(`Loaded ${CSV_PLAYERS.length} real WC 2026 players from CSV`);
 
+// Merge CSV players into SQUADS so they show up everywhere in the API
+CSV_PLAYERS.forEach(p => {
+  if (!SQUADS[p.team]) SQUADS[p.team] = [];
+  
+  // Try to find if player already exists in the mock data to replace it, or push new
+  const existingIdx = SQUADS[p.team].findIndex(ep => ep.name.toLowerCase() === p.name.toLowerCase());
+  const playerObj = {
+    name: p.name,
+    jersey: SQUADS[p.team].length + 1, // mock jersey
+    position: p.position === 'GK' ? 'Goalkeeper' : p.position === 'DF' ? 'Defender' : p.position === 'MF' ? 'Midfielder' : 'Forward',
+    age: p.age,
+    club: p.club,
+    goals: p.goals,
+    assists: p.assists,
+    minutes: p.minutes,
+    rating: p.rating,
+    salary_m: 0,
+    clean_sheets: 0,
+    yellow_cards: 0,
+    red_cards: 0,
+    goals_per90: 0,
+    assists_per90: 0
+  };
+
+  if (existingIdx >= 0) {
+    SQUADS[p.team][existingIdx] = { ...SQUADS[p.team][existingIdx], ...playerObj };
+  } else {
+    SQUADS[p.team].push(playerObj);
+  }
+});
 
 // Index fixtures by team for fast lookup
 const teamFixtures = {};

@@ -2344,75 +2344,238 @@ function playChampCelebration() {
   setTimeout(() => overlay.remove(), 4000);
 }
 
-/* ══════════════════ TAB 7: PREDICTOR ══════════════════ */
+/* ══════════════════ TAB 7: MANUAL PREDICTOR ══════════════════ */
+let manualGroupRankings = {}; 
+let selectedThirds = [];
+let bracketState = {}; 
+
 function initPredictor() {
-  const btn = document.getElementById('run-predictor-btn');
-  if (!btn) return;
+  const groupsGrid = document.getElementById('manual-groups-grid');
+  if (!groupsGrid) return;
   
-  btn.addEventListener('click', async () => {
-    btn.style.display = 'none';
-    const statusEl = document.getElementById('predictor-status');
-    const resultsEl = document.getElementById('predictor-results');
-    
-    statusEl.style.display = 'block';
-    resultsEl.style.display = 'none';
-    
-    // Simulate loading delay
-    await new Promise(r => setTimeout(r, 1500));
-    
-    const data = await $get('/api/predictor');
-    statusEl.style.display = 'none';
-    
-    if (data.error || !data.r32) {
-      statusEl.textContent = 'Error loading predictions.';
-      statusEl.style.display = 'block';
-      return;
-    }
-    
-    // Render
-    const r32El = document.getElementById('pred-r32');
-    r32El.innerHTML = data.r32.map(m => renderPredictorMatch(m)).join('');
-    
-    const r16El = document.getElementById('pred-r16');
-    r16El.innerHTML = data.r16.map(m => renderPredictorMatch(m)).join('');
-    
-    const qfEl = document.getElementById('pred-qf');
-    qfEl.innerHTML = data.qf.map(m => renderPredictorMatch(m)).join('');
-    
-    const sfEl = document.getElementById('pred-sf');
-    sfEl.innerHTML = data.sf.map(m => renderPredictorMatch(m)).join('');
-    
-    // Final
-    const finalEl = document.getElementById('pred-final');
-    finalEl.innerHTML = `
-      <div style="font-weight:bold; font-size:1.5rem;">${data.final.home}</div>
-      <div style="font-size:2rem; margin: 0 20px;">${data.final.homeScore} - ${data.final.awayScore}</div>
-      <div style="font-weight:bold; font-size:1.5rem;">${data.final.away}</div>
+  const groupsMap = {};
+  _teams.forEach(t => {
+    if (!groupsMap[t.group]) groupsMap[t.group] = [];
+    groupsMap[t.group].push(t.name);
+  });
+  
+  const sortedGroups = Object.keys(groupsMap).sort();
+  
+  groupsGrid.innerHTML = sortedGroups.map(g => {
+    const teams = groupsMap[g];
+    return `
+      <div class="panel" style="padding:10px;" data-group="${g}">
+        <h4 style="margin:0 0 10px 0; color:var(--accent);">Group ${g}</h4>
+        <div class="sortable-group" id="sort-group-${g}">
+          ${teams.map((t, idx) => `
+            <div class="team-rank-item" data-team="${t}" style="display:flex; justify-content:space-between; align-items:center; background:var(--surface-2); margin-bottom:5px; padding:5px 8px; border-radius:4px; border:1px solid var(--border);">
+              <span>${idx+1}. ${t}</span>
+              <div style="display:flex; flex-direction:column;">
+                <button onclick="moveRank(this, -1)" style="background:none; border:none; color:var(--text-1); cursor:pointer; padding:0 5px; font-size:10px;">▲</button>
+                <button onclick="moveRank(this, 1)" style="background:none; border:none; color:var(--text-1); cursor:pointer; padding:0 5px; font-size:10px;">▼</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
     `;
+  }).join('');
+  
+  window.moveRank = function(btn, dir) {
+    const item = btn.closest('.team-rank-item');
+    const container = item.parentElement;
+    const items = Array.from(container.children);
+    const idx = items.indexOf(item);
+    if (idx + dir >= 0 && idx + dir < items.length) {
+      if (dir === -1) {
+        container.insertBefore(item, items[idx - 1]);
+      } else {
+        container.insertBefore(item, items[idx + 2] || null);
+      }
+      Array.from(container.children).forEach((child, i) => {
+        child.querySelector('span').textContent = `${i+1}. ${child.dataset.team}`;
+      });
+    }
+  };
+
+  document.getElementById('lock-groups-btn').addEventListener('click', () => {
+    manualGroupRankings = {};
+    document.querySelectorAll('.sortable-group').forEach(group => {
+      const gName = group.id.split('-')[2];
+      manualGroupRankings[gName] = Array.from(group.children).map(c => c.dataset.team);
+    });
     
-    document.getElementById('pred-champion').textContent = data.final.winner;
+    document.getElementById('predictor-phase-1').style.display = 'none';
+    document.getElementById('predictor-phase-2').style.display = 'block';
     
-    resultsEl.style.display = 'block';
+    const thirdsGrid = document.getElementById('manual-third-grid');
+    selectedThirds = [];
+    const allThirds = sortedGroups.map(g => ({ group: g, team: manualGroupRankings[g][2] }));
     
-    // Confetti!
-    playChampCelebration();
+    thirdsGrid.innerHTML = allThirds.map(t => `
+      <div class="third-place-item panel" data-group="${t.group}" data-team="${t.team}" style="padding:10px; cursor:pointer; border:2px solid var(--border); width: 140px; text-align:center;">
+        <div style="font-size:10px; color:var(--text-2);">Group ${t.group}</div>
+        <div style="font-weight:bold;">${t.team}</div>
+      </div>
+    `).join('');
+    
+    document.querySelectorAll('.third-place-item').forEach(item => {
+      item.addEventListener('click', () => {
+        if (item.classList.contains('selected-third')) {
+          item.classList.remove('selected-third');
+          item.style.borderColor = 'var(--border)';
+          selectedThirds = selectedThirds.filter(t => t !== item.dataset.team);
+        } else {
+          if (selectedThirds.length >= 8) {
+            alert('You can only select 8 third-place teams!');
+            return;
+          }
+          item.classList.add('selected-third');
+          item.style.borderColor = 'var(--green)';
+          selectedThirds.push(item.dataset.team);
+        }
+        document.getElementById('generate-bracket-btn').disabled = (selectedThirds.length !== 8);
+      });
+    });
+  });
+
+  document.getElementById('back-to-groups-btn').addEventListener('click', () => {
+    document.getElementById('predictor-phase-2').style.display = 'none';
+    document.getElementById('predictor-phase-1').style.display = 'block';
+  });
+
+  document.getElementById('generate-bracket-btn').addEventListener('click', () => {
+    document.getElementById('predictor-phase-2').style.display = 'none';
+    document.getElementById('predictor-phase-3').style.display = 'block';
+    generateBracket();
+  });
+  
+  document.getElementById('reset-bracket-btn').addEventListener('click', () => {
+    document.getElementById('predictor-phase-3').style.display = 'none';
+    document.getElementById('predictor-phase-1').style.display = 'block';
   });
 }
 
-function renderPredictorMatch(m) {
-  const isPen = m.pen ? ` (P: ${m.pen})` : '';
-  const homeWin = m.homeScore > m.awayScore || (m.pen && parseInt(m.pen.split('-')[0]) > parseInt(m.pen.split('-')[1]));
-  return `
-    <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:5px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; ${homeWin ? 'font-weight:bold; color:var(--accent);' : 'color:var(--text-2)'}">
-        <span>${getFlagUrl(m.home) ? `<img src="${getFlagUrl(m.home)}" style="width:16px; margin-right:5px; vertical-align:middle;">` : ''}${m.home}</span>
-        <span>${m.homeScore}</span>
+function generateBracket() {
+  const get1 = g => manualGroupRankings[g][0];
+  const get2 = g => manualGroupRankings[g][1];
+  
+  const thirds = [...selectedThirds];
+  
+  bracketState = {
+    r32: [
+      { id: 'r32_1', home: get1('A'), away: thirds[0], winner: null },
+      { id: 'r32_2', home: get1('B'), away: thirds[1], winner: null },
+      { id: 'r32_3', home: get1('C'), away: get2('F'), winner: null },
+      { id: 'r32_4', home: get1('D'), away: thirds[2], winner: null },
+      { id: 'r32_5', home: get1('E'), away: thirds[3], winner: null },
+      { id: 'r32_6', home: get1('F'), away: get2('C'), winner: null },
+      { id: 'r32_7', home: get1('G'), away: thirds[4], winner: null },
+      { id: 'r32_8', home: get1('H'), away: get2('J'), winner: null },
+      { id: 'r32_9', home: get1('I'), away: thirds[5], winner: null },
+      { id: 'r32_10', home: get1('J'), away: get2('H'), winner: null },
+      { id: 'r32_11', home: get1('K'), away: thirds[6], winner: null },
+      { id: 'r32_12', home: get1('L'), away: thirds[7], winner: null },
+      { id: 'r32_13', home: get2('A'), away: get2('B'), winner: null },
+      { id: 'r32_14', home: get2('D'), away: get2('G'), winner: null },
+      { id: 'r32_15', home: get2('E'), away: get2('I'), winner: null },
+      { id: 'r32_16', home: get2('K'), away: get2('L'), winner: null },
+    ],
+    r16: Array.from({length: 8}).map((_, i) => ({ id: `r16_${i+1}`, home: 'TBD', away: 'TBD', winner: null })),
+    qf: Array.from({length: 4}).map((_, i) => ({ id: `qf_${i+1}`, home: 'TBD', away: 'TBD', winner: null })),
+    sf: Array.from({length: 2}).map((_, i) => ({ id: `sf_${i+1}`, home: 'TBD', away: 'TBD', winner: null })),
+    final: { id: 'final_1', home: 'TBD', away: 'TBD', winner: null }
+  };
+
+  renderBracket();
+}
+
+function renderBracket() {
+  const drawRound = (matches, roundId, nextRoundKey) => {
+    const el = document.getElementById(`bracket-${roundId}`);
+    el.innerHTML = `<h4 style="text-align:center; border-bottom:1px solid var(--border); padding-bottom:10px;">${roundId.toUpperCase()}</h4>` +
+      matches.map((m, idx) => `
+        <div class="bracket-match panel" style="margin-bottom:10px; padding:8px; border: 1px solid ${m.winner ? 'var(--green)' : 'var(--border)'};">
+          <div style="cursor:pointer; padding:5px; background: ${m.winner === m.home ? 'var(--surface-2)' : 'transparent'}; border-radius:4px; margin-bottom:2px;" 
+               onclick="advanceTeam('${roundId}', ${idx}, 'home', '${nextRoundKey}')">
+               ${getFlagUrl(m.home) ? `<img src="${getFlagUrl(m.home)}" style="width:14px; margin-right:4px;">` : ''} ${m.home}
+          </div>
+          <div style="cursor:pointer; padding:5px; background: ${m.winner === m.away ? 'var(--surface-2)' : 'transparent'}; border-radius:4px;" 
+               onclick="advanceTeam('${roundId}', ${idx}, 'away', '${nextRoundKey}')">
+               ${getFlagUrl(m.away) ? `<img src="${getFlagUrl(m.away)}" style="width:14px; margin-right:4px;">` : ''} ${m.away}
+          </div>
+        </div>
+      `).join('');
+  };
+
+  drawRound(bracketState.r32, 'r32', 'r16');
+  drawRound(bracketState.r16, 'r16', 'qf');
+  drawRound(bracketState.qf, 'qf', 'sf');
+  drawRound(bracketState.sf, 'sf', 'final');
+  
+  // Draw final
+  const f = bracketState.final;
+  const fEl = document.getElementById('bracket-final');
+  fEl.innerHTML = `<h4 style="text-align:center; border-bottom:1px solid var(--border); padding-bottom:10px; color:var(--gold);">FINAL</h4>
+    <div class="bracket-match panel" style="margin-bottom:10px; padding:12px; border: 2px solid ${f.winner ? 'var(--gold)' : 'var(--border)'}; background: rgba(212,175,55,0.05);">
+      <div style="cursor:pointer; padding:8px; background: ${f.winner === f.home ? 'rgba(212,175,55,0.2)' : 'transparent'}; border-radius:4px; margin-bottom:5px; font-weight:bold;" 
+           onclick="advanceTeam('final', 0, 'home', null)">
+           ${getFlagUrl(f.home) ? `<img src="${getFlagUrl(f.home)}" style="width:18px; margin-right:6px;">` : ''} ${f.home}
       </div>
-      <div style="display:flex; justify-content:space-between; align-items:center; ${!homeWin ? 'font-weight:bold; color:var(--accent);' : 'color:var(--text-2)'}">
-        <span>${getFlagUrl(m.away) ? `<img src="${getFlagUrl(m.away)}" style="width:16px; margin-right:5px; vertical-align:middle;">` : ''}${m.away}</span>
-        <span>${m.awayScore}</span>
+      <div style="cursor:pointer; padding:8px; background: ${f.winner === f.away ? 'rgba(212,175,55,0.2)' : 'transparent'}; border-radius:4px; font-weight:bold;" 
+           onclick="advanceTeam('final', 0, 'away', null)">
+           ${getFlagUrl(f.away) ? `<img src="${getFlagUrl(f.away)}" style="width:18px; margin-right:6px;">` : ''} ${f.away}
       </div>
-      ${isPen ? `<div style="font-size:10px; color:var(--text-2); text-align:center;">${isPen}</div>` : ''}
     </div>
   `;
+  
+  if (f.winner) {
+    if(!document.getElementById('champ-display')) {
+      fEl.innerHTML += `<div id="champ-display" style="text-align:center; margin-top:20px; animation: pop 0.5s ease-out;"><h2 style="color:var(--gold); margin:0;">🏆 CHAMPION</h2><h1 style="color:var(--text-1);">${f.winner}</h1></div>`;
+      playChampCelebration();
+    }
+  }
 }
+
+window.advanceTeam = function(round, matchIdx, side, nextRound) {
+  let match;
+  if (round === 'final') match = bracketState.final;
+  else match = bracketState[round][matchIdx];
+  
+  if (match[side] === 'TBD') return;
+  
+  match.winner = match[side];
+  
+  if (nextRound) {
+    const nextMatchIdx = Math.floor(matchIdx / 2);
+    const nextSide = matchIdx % 2 === 0 ? 'home' : 'away';
+    
+    if (nextRound === 'final') {
+      bracketState.final[nextSide] = match.winner;
+      bracketState.final.winner = null; // reset if changed
+    } else {
+      bracketState[nextRound][nextMatchIdx][nextSide] = match.winner;
+      bracketState[nextRound][nextMatchIdx].winner = null;
+      
+      // Cascade reset downstream
+      let cr = nextRound;
+      let ci = nextMatchIdx;
+      while (cr !== 'final') {
+        const nr = cr === 'r16' ? 'qf' : cr === 'qf' ? 'sf' : 'final';
+        const ni = Math.floor(ci / 2);
+        const ns = ci % 2 === 0 ? 'home' : 'away';
+        if (nr === 'final') {
+          bracketState.final[ns] = 'TBD';
+          bracketState.final.winner = null;
+        } else {
+          bracketState[nr][ni][ns] = 'TBD';
+          bracketState[nr][ni].winner = null;
+        }
+        cr = nr;
+        ci = ni;
+      }
+    }
+  }
+  
+  renderBracket();
+};
