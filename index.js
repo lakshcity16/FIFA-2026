@@ -8,8 +8,25 @@ const bodyParser = require('body-parser');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+io.on('connection', (socket) => {
+  console.log(`WebSockets client connected: ${socket.id}`);
+  socket.on('disconnect', () => {
+    console.log(`WebSockets client disconnected: ${socket.id}`);
+  });
+});
+
 const PORT = process.env.PORT || 3050;
 
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
@@ -1347,4 +1364,26 @@ app.get('/api/predictor', (req, res) => {
   res.json({ r32, r16, qf, sf, final });
 });
 
-app.listen(PORT, () => console.log(`\n🏆 FIFA 2026 Dashboard running → http://localhost:${PORT}\n`));
+// Webhook endpoint to accept real-time match events
+app.post('/api/webhook/match-update', (req, res) => {
+  const payload = req.body;
+  console.log('Received match update webhook:', payload);
+  
+  if (payload && (payload.matchId || payload.id)) {
+    // Broadcast webhook event to all active WebSockets connections
+    io.emit('match-update', {
+      event: payload.event || 'goal',
+      matchId: payload.matchId || payload.id,
+      team: payload.team,
+      scorer: payload.scorer || payload.player,
+      min: payload.min || payload.minute,
+      score: payload.score,
+      cardType: payload.cardType,
+      player: payload.player
+    });
+  }
+  
+  res.status(200).json({ success: true, message: 'Webhook received successfully' });
+});
+
+server.listen(PORT, () => console.log(`\n🏆 FIFA 2026 Dashboard running → http://localhost:${PORT}\n`));

@@ -7,6 +7,86 @@
 const API = '';
 let _teams = [], _groups = {}, _fixtures = [], _analytics = {}, _performers = {};
 
+// ── WebSockets Client Integration ──────────────────────────────
+let socket;
+try {
+  if (typeof io !== 'undefined') {
+    socket = io();
+    socket.on('connect', () => {
+      console.log('Successfully connected to WebSockets server:', socket.id);
+    });
+    
+    socket.on('match-update', (event) => {
+      console.log('Real-time match event received via WebSocket:', event);
+      
+      // Update UI data
+      triggerTimeRefresh(false);
+      
+      // Display a real-time toast notification
+      showWebSocketToast(event);
+    });
+  }
+} catch (e) {
+  console.warn('WebSockets client initialization failed:', e.message);
+}
+
+function showWebSocketToast(event) {
+  const toast = document.createElement('div');
+  toast.className = 'toast-notification';
+  toast.style.position = 'fixed';
+  toast.style.bottom = '20px';
+  toast.style.right = '20px';
+  toast.style.background = 'rgba(15, 23, 42, 0.95)';
+  toast.style.backdropFilter = 'blur(10px)';
+  toast.style.border = '2px solid var(--accent)';
+  toast.style.color = '#fff';
+  toast.style.padding = '16px 20px';
+  toast.style.borderRadius = '12px';
+  toast.style.boxShadow = '0 10px 30px rgba(0,0,0,0.5)';
+  toast.style.zIndex = '99999';
+  toast.style.fontFamily = 'Outfit, sans-serif';
+  toast.style.fontWeight = '700';
+  toast.style.display = 'flex';
+  toast.style.alignItems = 'center';
+  toast.style.gap = '12px';
+  toast.style.transition = 'all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+  toast.style.opacity = '0';
+  toast.style.transform = 'translateY(40px) scale(0.9)';
+  
+  let icon = '📢';
+  let desc = 'Match update received!';
+  
+  if (event.event === 'goal') {
+    icon = '⚽';
+    desc = `<span style="color:var(--accent-2); font-weight:900;">GOAL!</span> ${event.scorer} (${event.min}') has scored! <br><span style="font-size:16px; color:#fff; font-weight:800;">Score: ${event.score}</span>`;
+  } else if (event.event === 'card') {
+    const isRed = event.cardType === 'red';
+    icon = isRed ? '🟥' : '🟨';
+    desc = `<span style="color:${isRed ? 'var(--red)' : 'var(--gold)'}; font-weight:900;">${isRed ? 'RED CARD' : 'YELLOW CARD'}</span><br>${event.player} booked (${event.min}').`;
+  } else if (event.event === 'ft') {
+    icon = '🏁';
+    desc = `<span style="color:var(--green); font-weight:900;">FULL TIME</span><br>Match finished. Final Score: ${event.score}`;
+  }
+  
+  toast.innerHTML = `<span style="font-size: 28px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">${icon}</span> <div style="display:flex; flex-direction:column; gap:2px; line-height:1.3; font-size:13px;">${desc}</div>`;
+  document.body.appendChild(toast);
+  
+  // Trigger animations
+  setTimeout(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateY(0) scale(1)';
+  }, 100);
+  
+  // Auto remove
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(20px) scale(0.95)';
+    setTimeout(() => {
+      toast.remove();
+    }, 500);
+  }, 6000);
+}
+
 // Chart instances (kept for destroy-on-redraw)
 let chartGoalsGroup, chartRadar, chartBar, chartJourney, chartPrediction;
 
