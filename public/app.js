@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     fetchTeams(), fetchGroups(), fetchPerformers()
   ]);
   initNav();
-  await refreshOverviewTab();
+  await initOverview();
   initGroupsTab();
   initTeamsTab();
   initAI();
@@ -263,25 +263,24 @@ async function refreshOverviewTab() {
 
 async function initOverview() {
   const dateInput = document.getElementById('date-filter');
-  if (dateInput) {
-    dateInput.addEventListener('change', async (e) => {
-      // Offset simulated time to the selected date
-      const selectedDate = e.target.value;
-      const hours = _simulatedDate.getUTCHours();
-      const mins = _simulatedDate.getUTCMinutes();
-      const nextDt = new Date(`${selectedDate}T${String(hours).padStart(2,'0')}:${String(mins).padStart(2,'0')}:00Z`);
-      
-      const base = new Date('2026-06-11T12:00:00Z');
-      const diffDays = Math.floor((nextDt - base) / (24 * 60 * 60 * 1000));
-      const slider = document.getElementById('tm-slider');
-      if (slider) {
-        slider.value = Math.max(0, Math.min(38, diffDays));
-      }
-      
-      _simulatedDate = nextDt;
-      updateTimeMachineUI();
-      await triggerTimeRefresh();
-    });
+  const applyBtn = document.getElementById('apply-date-btn');
+
+  const applyDateFilter = async () => {
+    if (!dateInput) return;
+    const selectedDate = dateInput.value;
+    const hours = _simulatedDate.getUTCHours();
+    const mins = _simulatedDate.getUTCMinutes();
+    const nextDt = new Date(`${selectedDate}T${String(hours).padStart(2,'0')}:${String(mins).padStart(2,'0')}:00Z`);
+    
+    _simulatedDate = nextDt;
+    updateTimeMachineUI();
+    await triggerTimeRefresh();
+  };
+
+  if (applyBtn) {
+    applyBtn.addEventListener('click', applyDateFilter);
+  } else if (dateInput) {
+    dateInput.addEventListener('change', applyDateFilter);
   }
 
   // Performers list
@@ -1148,6 +1147,24 @@ async function runCompare() {
       </div>`;
   };
   out.innerHTML = renderPlayer(res.player1) + '<div class="cmp-vs">VS</div>' + renderPlayer(res.player2);
+  
+  if (res.ai_comparison) {
+    const aiDiv = document.createElement('div');
+    aiDiv.style.gridColumn = '1 / -1';
+    aiDiv.style.marginTop = '20px';
+    aiDiv.style.padding = '16px';
+    aiDiv.style.background = 'var(--surface-2)';
+    aiDiv.style.border = '1px solid var(--border)';
+    aiDiv.style.borderRadius = '8px';
+    aiDiv.style.textAlign = 'left';
+    aiDiv.innerHTML = `
+      <h4 style="color: var(--accent); margin-bottom: 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+        ✨ AI Tactical Comparison
+      </h4>
+      <p style="color: var(--text-1); font-size: 13px; line-height: 1.5; margin: 0;">${res.ai_comparison}</p>
+    `;
+    out.appendChild(aiDiv);
+  }
 }
 
 /* ══════════════════ TAB 5: AUCTION ══════════════════ */

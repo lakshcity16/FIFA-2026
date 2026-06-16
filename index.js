@@ -21,12 +21,20 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Load pre-built JSON data ──────────────────────────────────
 const load = f => JSON.parse(fs.readFileSync(path.join(__dirname, 'public', f), 'utf8'));
-const SQUADS   = load('data_squads.json');
 const FIXTURES = load('data_fixtures.json');
 const GROUPS   = load('data_groups.json');
 const ANALYTICS= load('data_analytics.json');
 const PERFORMERS=load('data_performers.json');
 const TEAM_MAP = load('team_map.json');
+
+// Helper for accent-insensitive, order-insensitive name comparison
+const getNameKey = (name) => {
+  if (!name) return '';
+  const clean = str => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const words = clean(name).split(/\s+/).filter(Boolean);
+  words.sort();
+  return words.join(' ');
+};
 
 // ── Load real WC 2026 player stats from CSV ──────────────────
 const CSV_PLAYERS = (() => {
@@ -53,12 +61,17 @@ const CSV_PLAYERS = (() => {
       const dobStr = v[idx('DOB')] || '';
       let age = 0;
       if (dobStr) {
-        const year = parseInt(dobStr.split('/')[2]);
-        if (year) age = 2026 - year;
+        const parts = dobStr.split('/');
+        if (parts.length === 3) {
+          const year = parseInt(parts[2]);
+          if (year) age = 2026 - year;
+        }
       }
       
       const caps = parseInt(v[idx('Caps')]) || 0;
       const goals = parseInt(v[idx('Goals')]) || 0;
+      const number = parseInt(v[idx('Number')]) || 0;
+      const height = parseInt(v[idx('Height (cm)')]) || 180;
       
       let rating = 6.0 + (caps * 0.015) + (goals * 0.03);
       if (rating > 9.8) rating = 9.8;
@@ -74,7 +87,9 @@ const CSV_PLAYERS = (() => {
         minutes: caps * 60, // mock minutes based on caps
         xg: parseFloat((goals * 0.8).toFixed(2)),
         club: v[idx('Club')],
-        caps: caps
+        caps: caps,
+        number: number,
+        height: height
       };
     }).filter(r => r.name && r.team);
   } catch(e) {
@@ -84,15 +99,22 @@ const CSV_PLAYERS = (() => {
 })();
 console.log(`Loaded ${CSV_PLAYERS.length} real WC 2026 players from CSV`);
 
-// Merge CSV players into SQUADS so they show up everywhere in the API
+// Build SQUADS from CSV_PLAYERS directly, with deduplication and 26-player cap per team
+const SQUADS = {};
 CSV_PLAYERS.forEach(p => {
   if (!SQUADS[p.team]) SQUADS[p.team] = [];
   
-  // Try to find if player already exists in the mock data to replace it, or push new
-  const existingIdx = SQUADS[p.team].findIndex(ep => ep.name.toLowerCase() === p.name.toLowerCase());
-  const playerObj = {
+  const nameKey = getNameKey(p.name);
+  const isDuplicate = SQUADS[p.team].some(ep => getNameKey(ep.name) === nameKey);
+  if (isDuplicate) return;
+  
+  if (SQUADS[p.team].length >= 26) return;
+  
+  const value_m = parseFloat(Math.max(0.5, ((p.rating - 5.5) * 8 - (p.age - 25) * 0.5)).toFixed(1));
+  
+  SQUADS[p.team].push({
     name: p.name,
-    jersey: SQUADS[p.team].length + 1, // mock jersey
+    jersey: p.number,
     position: p.position === 'GK' ? 'Goalkeeper' : p.position === 'DF' ? 'Defender' : p.position === 'MF' ? 'Midfielder' : 'Forward',
     age: p.age,
     club: p.club,
@@ -100,20 +122,33 @@ CSV_PLAYERS.forEach(p => {
     assists: p.assists,
     minutes: p.minutes,
     rating: p.rating,
+    height: p.height,
+    value_m: value_m,
     salary_m: 0,
     clean_sheets: 0,
     yellow_cards: 0,
     red_cards: 0,
     goals_per90: 0,
     assists_per90: 0
-  };
-
-  if (existingIdx >= 0) {
-    SQUADS[p.team][existingIdx] = { ...SQUADS[p.team][existingIdx], ...playerObj };
-  } else {
-    SQUADS[p.team].push(playerObj);
-  }
+  });
 });
+
+// Global fuzzy search helper
+function findSquadPlayer(query) {
+  if (!query) return null;
+  const queryKey = getNameKey(query);
+  if (!queryKey) return null;
+  const queryParts = queryKey.split(' ');
+  
+  for (const [team, squad] of Object.entries(SQUADS)) {
+    const found = squad.find(p => {
+      const pKey = getNameKey(p.name);
+      return queryParts.every(part => pKey.includes(part));
+    });
+    if (found) return { ...found, team };
+  }
+  return null;
+}
 
 // Index fixtures by team for fast lookup
 const teamFixtures = {};
@@ -205,7 +240,7 @@ function getTournamentState() {
   const liveFixtures = FIXTURES.map(f => {
     const min = getMatchMinute(f.kickoff, nowStr);
     const dynamicData = generateDynamicMatchStats(f, min);
-    return { ...f, ...dynamicData };
+    return { ...f, ...dynamicData, highlights: `/api/match/${f.id}/highlights-redirect` };
   });
 
   // Calculate live group standings
@@ -215,7 +250,7 @@ function getTournamentState() {
     if (!liveGroups[f.group]) {
       const teamsInGroup = [...new Set(FIXTURES.filter(fix => fix.group === f.group).flatMap(fix => [fix.home, fix.away]))];
       liveGroups[f.group] = teamsInGroup.map(t => ({
-        team: t, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0,
+        team: t, p: 0, mp: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0,
         flag: TEAM_MAP[t] ? TEAM_MAP[t].flag : ''
       }));
     }
@@ -230,7 +265,7 @@ function getTournamentState() {
       away.ga += f.home_score;
       
       if (f.status === 'finished') {
-        home.p++; away.p++;
+        home.p++; home.mp++; away.p++; away.mp++;
         if (f.home_score > f.away_score) { home.w++; home.pts += 3; away.l++; }
         else if (f.home_score < f.away_score) { away.w++; away.pts += 3; home.l++; }
         else { home.d++; away.d++; home.pts += 1; away.pts += 1; }
@@ -246,12 +281,18 @@ function getTournamentState() {
   return { fixtures: liveFixtures, groups: liveGroups, playerStats: {} };
 }
 
-function getFuzzySquadPlayer(teamName, namePart) {
+function getFuzzySquadPlayer(teamName, positionGroup) {
   const squad = SQUADS[teamName] || [];
-  const clean = str => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const searchPart = clean(namePart);
-  const found = squad.find(p => clean(p.name).includes(searchPart));
-  return found ? found.name : namePart;
+  const matches = squad.filter(p => p.position.toLowerCase() === positionGroup.toLowerCase());
+  if (matches.length > 0) {
+    const idx = Math.floor(Math.random() * matches.length);
+    return matches[idx].name;
+  }
+  if (squad.length > 0) {
+    const idx = Math.floor(Math.random() * squad.length);
+    return squad[idx].name;
+  }
+  return positionGroup;
 }
 
 function getMatchStats(matchId, home, away, homeScore, awayScore) {
@@ -336,7 +377,7 @@ app.get('/api/match/:id/shotmap', async (req, res) => {
   try {
     // We use a real Sofascore Event ID for the live shotmap demonstration (as requested via screenshot)
     const sofascoreEventId = '14566662'; 
-    const rapidApiKey = 'aadda7b2aemsh3a23637969a12b6p138d41jsne5411241ffe6';
+    const rapidApiKey = process.env.rapidapi || 'aadda7b2aemsh3a23637969a12b6p138d41jsne5411241ffe6';
     
     const response = await axios.get(`https://sofascore-sport-api.p.rapidapi.com/api/event/${sofascoreEventId}/shotmap`, {
       headers: {
@@ -350,6 +391,49 @@ app.get('/api/match/:id/shotmap', async (req, res) => {
     console.error('RapidAPI Shotmap Error:', error.message);
     res.status(500).json({ error: 'Failed to fetch live shotmap' });
   }
+});
+
+app.get('/api/match/:id/highlights-redirect', async (req, res) => {
+  const matchId = req.params.id;
+  const key = process.env.rapidapi || 'aadda7b2aemsh3a2367969a12b6p138d41jsne5411241ffe6';
+  const host = 'sport-highlights-api.p.rapidapi.com';
+  
+  let match = null;
+  try {
+    const { fixtures } = getTournamentState();
+    match = fixtures.find(f => f.id === matchId);
+    
+    if (match) {
+      const response = await axios.get(`https://${host}/football/highlights`, {
+        headers: {
+          'x-rapidapi-host': host,
+          'x-rapidapi-key': key
+        },
+        params: {
+          limit: 15
+        },
+        timeout: 3000
+      });
+      
+      const items = response.data?.highlights || response.data || [];
+      const found = items.find(item => {
+        const title = (item.title || '').toLowerCase();
+        return title.includes(match.home.toLowerCase()) || title.includes(match.away.toLowerCase());
+      });
+      
+      if (found && (found.video_url || found.url)) {
+        return res.redirect(found.video_url || found.url);
+      }
+    }
+  } catch (err) {
+    console.error('Highlights API redirect error:', err.message);
+  }
+  
+  // Fallback to youtube search
+  const searchQuery = match 
+    ? `${match.home} vs ${match.away} FIFA World Cup 2026 highlights` 
+    : 'FIFA World Cup 2026 highlights';
+  res.redirect(`https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`);
 });
 
 // 3. Single team full profile
@@ -690,11 +774,7 @@ app.post('/api/ai/analyze', async (req, res) => {
   const { player, opponent } = req.body;
   if (!player || !opponent) return res.status(400).json({ error: 'player and opponent required' });
 
-  let playerData = null;
-  for (const [team, squad] of Object.entries(SQUADS)) {
-    const found = squad.find(p => p.name.toLowerCase().includes(player.toLowerCase()));
-    if (found) { playerData = { ...found, team }; break; }
-  }
+  const playerData = findSquadPlayer(player);
 
   const oppAnalytics = ANALYTICS[opponent] || {};
   const key = nextKey();
@@ -1068,18 +1148,35 @@ app.get('/api/live', async (req, res) => {
 });
 
 // 14. Player compare
-app.get('/api/compare', (req, res) => {
+app.get('/api/compare', async (req, res) => {
   const { p1, p2 } = req.query;
-  const find = name => {
-    for (const [team, squad] of Object.entries(SQUADS)) {
-      const p = squad.find(x => x.name.toLowerCase().includes(name.toLowerCase()));
-      if (p) return { ...p, team };
-    }
-    return null;
-  };
-  const player1 = find(p1), player2 = find(p2);
+  const player1 = findSquadPlayer(p1);
+  const player2 = findSquadPlayer(p2);
   if (!player1 || !player2) return res.status(404).json({ error: 'One or both players not found' });
-  res.json({ player1, player2 });
+
+  const key = nextKey();
+  let aiComparison = "";
+  if (key) {
+    const prompt = `You are a world-class football tactical analyst. Compare these two players for the FIFA World Cup 2026:
+Player 1: ${player1.name} (Team: ${player1.team}, Pos: ${player1.position}, Age: ${player1.age}, Club: ${player1.club}, Rating: ${player1.rating}, Goals: ${player1.goals}, Assists: ${player1.assists})
+Player 2: ${player2.name} (Team: ${player2.team}, Pos: ${player2.position}, Age: ${player2.age}, Club: ${player2.club}, Rating: ${player2.rating}, Goals: ${player2.goals}, Assists: ${player2.assists})
+
+Provide a concise, 100-word tactical comparison of their roles, strengths, and who would be more critical in a tournament setting. Be specific, analytical, and sound like a Sky Sports pundit.`;
+    try {
+      const r = await axios.post('https://api.groq.com/openai/v1/chat/completions',
+        { model: 'llama-3.1-8b-instant', messages: [{ role: 'user', content: prompt }], max_tokens: 200, temperature: 0.7 },
+        { headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, timeout: 3500 }
+      );
+      aiComparison = r.data.choices[0].message.content.trim();
+    } catch (e) {
+      console.error('Groq compare error:', e.message);
+      aiComparison = "Tactical comparison currently unavailable due to API rate limiting.";
+    }
+  } else {
+    aiComparison = "Groq key not configured for AI comparison.";
+  }
+
+  res.json({ player1, player2, ai_comparison: aiComparison });
 });
 
 // 15. Real Live Football Feed proxy (API-Football)

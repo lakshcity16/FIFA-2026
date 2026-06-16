@@ -98,7 +98,10 @@
     <div class="panel">
       <div class="panel-header">
         <h3 id="overview-date-header">Today's Matches · June 15</h3>
-        <input type="date" id="date-filter" value="2026-06-15" min="2026-06-11" max="2026-07-19">
+        <div class="date-filter-wrap" style="display:flex; gap:8px; align-items:center;">
+          <input type="date" id="date-filter" value="2026-06-15" min="2026-06-11" max="2026-07-19" style="padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: #fff; outline: none; font-size: 13px; font-family: inherit;">
+          <button id="apply-date-btn" class="btn-primary" style="padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; height: auto; font-family: inherit;">Apply</button>
+        </div>
       </div>
       <div id="today-fixtures" class="fixture-list" style="max-height: 250px;"></div>
       <div id="daily-standouts-wrap" style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px;">
