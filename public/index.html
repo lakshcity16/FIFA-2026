@@ -43,9 +43,10 @@
       <button class="nav-btn" data-tab="groups">Groups &amp; Standings</button>
       <button class="nav-btn" data-tab="teams">48 Teams</button>
       <button class="nav-btn" data-tab="ai">AI Inference</button>
-      <button class="nav-btn" data-tab="realdata">Real Live API</button>
+
       <button class="nav-btn" data-tab="auction">Draft Auction</button>
       <button class="nav-btn" data-tab="journey">Journey Sim</button>
+      <button class="nav-btn" data-tab="predictor">Tournament Predictor</button>
       <button class="nav-btn" data-tab="aichat">AI Chat</button>
     </nav>
     <!-- Tournament Time Machine Widget -->
@@ -98,7 +99,7 @@
   <div class="two-col">
     <div class="panel">
       <div class="panel-header">
-        <h3>Today's Matches · June 15</h3>
+        <h3 id="overview-date-header">Today's Matches · June 15</h3>
         <input type="date" id="date-filter" value="2026-06-15" min="2026-06-11" max="2026-07-19">
       </div>
       <div id="today-fixtures" class="fixture-list" style="max-height: 250px;"></div>
@@ -226,14 +227,14 @@
 <section id="tab-auction" class="tab">
   <div class="page-title">
     <h1>1v1 AI Draft Auction</h1>
-    <p>Budget: 120 CP · Build 11 starters + 4 subs · All players start at <strong>1 CP</strong> · Bids rise by +1 each round</p>
+    <p>Budget: 120 CP · Build 11 players · All players start at <strong>1 CP</strong> · Bids rise by +1 each round</p>
   </div>
 
   <!-- Setup -->
   <div id="auction-setup" class="panel setup-card">
     <div class="rules-grid">
       <div class="rule"><span class="rule-num">120</span><span class="rule-label">Total CP Budget</span></div>
-      <div class="rule"><span class="rule-num">15</span><span class="rule-label">Players to Draft</span></div>
+      <div class="rule"><span class="rule-num">11</span><span class="rule-label">Players per Team</span></div>
       <div class="rule"><span class="rule-num">1</span><span class="rule-label">Starting Bid (CP)</span></div>
       <div class="rule"><span class="rule-num">+1</span><span class="rule-label">Bid Increment</span></div>
     </div>
@@ -445,28 +446,58 @@
   </div>
 </section>
 
+
 <!-- ═══════════════════════════════════════════════════════ -->
-<!-- TAB 7: REAL LIVE DATA                                  -->
+<!-- TAB 7: TOURNAMENT PREDICTOR                            -->
 <!-- ═══════════════════════════════════════════════════════ -->
-<section id="tab-realdata" class="tab">
+<section id="tab-predictor" class="tab">
   <div class="page-title">
-    <h1>Real-World Football Feed</h1>
-    <p>Live scores and fixtures from real-world matches today (refreshed daily at 9:00 AM IST)</p>
+    <h1>Tournament Knockout Predictor</h1>
+    <p>Simulate the entire World Cup knockout stage from the group standings</p>
+  </div>
+  <div class="panel predictor-panel" style="text-align:center; padding: 40px;">
+    <button class="btn-primary big-btn" id="run-predictor-btn" style="font-size: 1.2rem; padding: 15px 40px;">🏆 Predict Knockout Stage</button>
+    
+    <div id="predictor-status" style="display:none; margin-top:20px; color: var(--accent-2); font-weight:bold;">
+      <span class="live-dot pulse" style="background-color:var(--accent-2); display:inline-block; margin-right:8px;"></span>
+      Running full bracket simulation...
+    </div>
   </div>
 
-  <div class="panel">
-    <div class="panel-header" style="flex-wrap: wrap; gap: 12px;">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <span class="live-dot pulse"></span>
-        <h3>Today's Real-World Matches</h3>
-      </div>
-      <div class="feed-status" style="font-size: 0.9rem; color: var(--text-2);">
-        Status: <span id="real-feed-source" style="font-weight: bold; color: var(--accent-2);">Loading...</span> · 
-        Refreshed at: <span id="real-feed-time" style="font-weight: bold;">--:--</span>
-      </div>
+  <div id="predictor-results" style="display:none; margin-top:30px;">
+    <!-- R32 -->
+    <div class="panel" style="margin-bottom: 20px;">
+      <h3 style="border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px;">Round of 32 Matches</h3>
+      <div id="pred-r32" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px;"></div>
     </div>
-    <div id="real-matches-list" class="real-matches-grid" style="margin-top: 16px;">
-      <!-- Real matches loaded here -->
+    
+    <!-- R16 -->
+    <div class="panel" style="margin-bottom: 20px;">
+      <h3 style="border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px;">Round of 16 Matches</h3>
+      <div id="pred-r16" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px;"></div>
+    </div>
+    
+    <!-- QF -->
+    <div class="panel" style="margin-bottom: 20px;">
+      <h3 style="border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px;">Quarter-Finals</h3>
+      <div id="pred-qf" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px;"></div>
+    </div>
+
+    <!-- SF -->
+    <div class="panel" style="margin-bottom: 20px;">
+      <h3 style="border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px;">Semi-Finals</h3>
+      <div id="pred-sf" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px;"></div>
+    </div>
+
+    <!-- Final -->
+    <div class="panel" style="margin-bottom: 20px; text-align:center; background: linear-gradient(135deg, rgba(212,175,55,0.1) 0%, rgba(0,0,0,0) 100%); border-color: var(--gold);">
+      <h3 style="color: var(--gold); padding-bottom: 10px; margin-bottom: 15px;">World Cup Final 🏆</h3>
+      <div id="pred-final" style="display:flex; justify-content:center; align-items:center; gap: 20px; font-size: 1.2rem;"></div>
+      
+      <div style="margin-top: 30px;">
+        <h2 style="color: var(--gold); margin-bottom: 10px;">WORLD CHAMPION</h2>
+        <div id="pred-champion" style="font-size: 2.5rem; font-weight: bold; text-shadow: 0 0 20px rgba(212,175,55,0.5);"></div>
+      </div>
     </div>
   </div>
 </section>

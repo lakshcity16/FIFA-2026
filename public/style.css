@@ -1279,7 +1279,7 @@ body.theme-frost {
   overflow-x: auto;
   padding: 20px 10px;
   position: relative;
-  height: 1400px !important;
+  min-height: 1400px;
   align-items: stretch;
   background: rgba(0,0,0,0.15);
   border-radius: var(--radius);
@@ -1291,7 +1291,7 @@ body.theme-frost {
   justify-content: space-around;
   flex: 1;
   min-width: 215px;
-  gap: 0 !important;
+  gap: 16px;
 }
 .bracket-match {
   background: var(--surface-2);

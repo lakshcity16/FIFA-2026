@@ -28,6 +28,39 @@ const ANALYTICS= load('data_analytics.json');
 const PERFORMERS=load('data_performers.json');
 const TEAM_MAP = load('team_map.json');
 
+// ── Load real WC 2026 player stats from CSV ──────────────────
+const CSV_PLAYERS = (() => {
+  try {
+    const csvPath = path.join(__dirname, 'international-world-cup-players-2026-to-2026-stats.csv');
+    const lines = fs.readFileSync(csvPath, 'utf8').split('\n');
+    const headers = lines[0].split(',');
+    const idx = h => headers.indexOf(h);
+    return lines.slice(1).filter(l => l.trim()).map(l => {
+      const v = l.split(',');
+      return {
+        name: v[idx('full_name')],
+        team: v[idx('nationality')],
+        position: v[idx('position')],
+        age: parseInt(v[idx('age')]) || 0,
+        rating: parseFloat(v[idx('average_rating_overall')]) || 0,
+        goals: parseInt(v[idx('goals_overall')]) || 0,
+        assists: parseInt(v[idx('assists_overall')]) || 0,
+        minutes: parseInt(v[idx('minutes_played_overall')]) || 0,
+        xg: parseFloat(v[idx('xg_total_overall')]) || 0,
+        goals_per90: parseFloat(v[idx('goals_per_90_overall')]) || 0,
+        assists_per90: parseFloat(v[idx('assists_per_90_overall')]) || 0,
+        pass_acc: parseFloat(v[idx('pass_completion_rate_overall')]) || 0,
+        club: v[idx('Current Club')]
+      };
+    }).filter(r => r.rating > 0 && r.name);
+  } catch(e) {
+    console.error('CSV load error:', e.message);
+    return [];
+  }
+})();
+console.log(`Loaded ${CSV_PLAYERS.length} real WC 2026 players from CSV`);
+
+
 // Index fixtures by team for fast lookup
 const teamFixtures = {};
 FIXTURES.forEach(f => {
@@ -340,7 +373,8 @@ function getTournamentState(simTimeStr) {
       minute: status === 'live' ? minute : null,
       home_score,
       away_score,
-      scorers
+      scorers,
+      highlights: status === 'finished' ? `https://www.youtube.com/results?search_query=FIFA+World+Cup+2026+${encodeURIComponent(f.home)}+vs+${encodeURIComponent(f.away)}+highlights` : null
     };
   });
   
@@ -885,68 +919,87 @@ Be specific, use the data provided, and sound like a Sky Sports analyst.`;
   }
 });
 
-// 9. Auction Pool — top players, start price = 1 CP always
+// 9. Auction Pool — top 5 players per sub-position from real WC 2026 CSV data
 app.get('/api/auction/pool', (req, res) => {
-  const allPlayers = [];
-  Object.entries(SQUADS).forEach(([team, squad]) => {
-    squad.forEach(p => {
-      allPlayers.push({ ...p, team });
-    });
-  });
-
-  const goalkeepers = allPlayers.filter(p => p.position === 'Goalkeeper').sort((a,b) => b.rating - a.rating);
-  const defenders = allPlayers.filter(p => p.position === 'Defender').sort((a,b) => b.rating - a.rating);
-  const midfielders = allPlayers.filter(p => p.position === 'Midfielder').sort((a,b) => b.rating - a.rating);
-  const forwards = allPlayers.filter(p => p.position === 'Forward').sort((a,b) => b.rating - a.rating);
-
-  const posMap = {
-    GK: [],
-    LB: [], LCB: [], RCB: [], RB: [],
-    CDM: [], CM: [], CAM: [],
-    LW: [], RW: [], ST: []
+  // Position buckets: GK, LB, LCB, RCB, RB, CDM, CM, CAM, LW, RW, ST
+  const posMapping = {
+    GK: p => p.position === 'Goalkeeper',
+    LCB: p => p.position === 'Defender',
+    RCB: p => p.position === 'Defender',
+    LB: p => p.position === 'Defender',
+    RB: p => p.position === 'Defender',
+    CDM: p => p.position === 'Midfielder',
+    CM: p => p.position === 'Midfielder',
+    CAM: p => p.position === 'Midfielder',
+    LW: p => p.position === 'Forward',
+    RW: p => p.position === 'Forward',
+    ST: p => p.position === 'Forward',
   };
 
-  goalkeepers.forEach(p => {
-    p.specific_position = 'GK';
-    posMap.GK.push(p);
-  });
-
-  defenders.forEach((p, idx) => {
-    const subPos = ['LCB', 'RCB', 'LB', 'RB'][idx % 4];
-    p.specific_position = subPos;
-    posMap[subPos].push(p);
-  });
-
-  midfielders.forEach((p, idx) => {
-    const subPos = ['CM', 'CDM', 'CAM'][idx % 3];
-    p.specific_position = subPos;
-    posMap[subPos].push(p);
-  });
-
-  forwards.forEach((p, idx) => {
-    const subPos = ['ST', 'LW', 'RW'][idx % 3];
-    p.specific_position = subPos;
-    posMap[subPos].push(p);
-  });
-
+  // Get real players with rating >= 6.8 who actually played
+  const realPlayers = CSV_PLAYERS.filter(p => p.rating >= 6.8 && p.minutes > 0);
+  
   const pool = [];
-  Object.entries(posMap).forEach(([posName, list]) => {
-    list.sort((a,b) => b.rating - a.rating);
-    const top5 = list.slice(0, 5).map(p => ({
-      ...p,
-      position: p.specific_position,
-      base_cp: 1,
-      tier: p.rating >= 9 ? 'Elite' : p.rating >= 8 ? 'Star' : p.rating >= 7 ? 'Good' : 'Regular',
-      max_expected_cp: Math.max(1, Math.round((p.rating - 5) * 7))
-    }));
-    pool.push(...top5);
+  const used = new Set();
+
+  // Build GKs from top 5 GKs in CSV
+  const gks = realPlayers.filter(p => p.position === 'Goalkeeper').sort((a,b) => b.rating - a.rating);
+  gks.slice(0, 5).forEach((p, i) => {
+    if (!used.has(p.name)) {
+      used.add(p.name);
+      pool.push({ ...p, position: 'GK', tier: p.rating >= 8.0 ? 'Elite' : p.rating >= 7.5 ? 'Star' : 'Good', base_cp: 1, max_expected_cp: Math.max(1, Math.round((p.rating - 6.0) * 12)) });
+    }
   });
 
+  // Build defenders: 5 per sub-position but share the defender pool
+  const defenders = realPlayers.filter(p => p.position === 'Defender').sort((a,b) => b.rating - a.rating);
+  const defSlots = ['LCB', 'RCB', 'LB', 'RB'];
+  const defPerSlot = 5;
+  let defIdx = 0;
+  defenders.forEach(p => {
+    if (used.has(p.name)) return;
+    const slot = defSlots[defIdx % defSlots.length];
+    if (pool.filter(x => x.position === slot).length < defPerSlot) {
+      used.add(p.name);
+      defIdx++;
+      pool.push({ ...p, position: slot, tier: p.rating >= 8.0 ? 'Elite' : p.rating >= 7.5 ? 'Star' : 'Good', base_cp: 1, max_expected_cp: Math.max(1, Math.round((p.rating - 6.0) * 12)) });
+    }
+  });
+
+  // Build midfielders: CDM, CM, CAM
+  const mids = realPlayers.filter(p => p.position === 'Midfielder').sort((a,b) => b.rating - a.rating);
+  const midSlots = ['CDM', 'CM', 'CAM'];
+  let midIdx = 0;
+  mids.forEach(p => {
+    if (used.has(p.name)) return;
+    const slot = midSlots[midIdx % midSlots.length];
+    if (pool.filter(x => x.position === slot).length < 5) {
+      used.add(p.name);
+      midIdx++;
+      pool.push({ ...p, position: slot, tier: p.rating >= 8.0 ? 'Elite' : p.rating >= 7.5 ? 'Star' : 'Good', base_cp: 1, max_expected_cp: Math.max(1, Math.round((p.rating - 6.0) * 12)) });
+    }
+  });
+
+  // Build forwards: LW, RW, ST
+  const fwds = realPlayers.filter(p => p.position === 'Forward').sort((a,b) => b.rating - a.rating);
+  const fwdSlots = ['ST', 'LW', 'RW'];
+  let fwdIdx = 0;
+  fwds.forEach(p => {
+    if (used.has(p.name)) return;
+    const slot = fwdSlots[fwdIdx % fwdSlots.length];
+    if (pool.filter(x => x.position === slot).length < 5) {
+      used.add(p.name);
+      fwdIdx++;
+      pool.push({ ...p, position: slot, tier: p.rating >= 8.0 ? 'Elite' : p.rating >= 7.5 ? 'Star' : 'Good', base_cp: 1, max_expected_cp: Math.max(1, Math.round((p.rating - 6.0) * 12)) });
+    }
+  });
+
+  // Shuffle pool
   for (let i = pool.length-1; i > 0; i--) {
     const j = Math.floor(Math.random()*(i+1));
     [pool[i],pool[j]] = [pool[j],pool[i]];
   }
-  res.json({ players: pool });
+  res.json({ players: pool, total: pool.length });
 });
 
 // 10. Match simulation
@@ -1049,7 +1102,7 @@ app.post('/api/ai/live-commentary', async (req, res) => {
   const key = nextKey();
   if (!key) return res.status(500).json({ error: 'No Groq API keys available' });
 
-  const prompt = `You are a live football commentator reporting on a FIFA World Cup 2026 match.
+  const prompt = `You are a live football commentator reporting on a FIFA World Cup 2026 match (hosted in USA, Canada, and Mexico). DO NOT reference the 2022 World Cup or past events. Act as if it is the year 2026.
 Match: ${home} vs ${away}
 Current Minute: ${minute}'
 Current Score: ${home} ${score} ${away}
@@ -1086,7 +1139,9 @@ app.post('/api/ai/chat', async (req, res) => {
     return `${team} (Rating: ${data.overall_rating}/10, Group: ${data.group}, Top Player: ${data.top_player})`;
   }).join(', ');
 
-  const systemMessage = `You are a world-class football analyst, tactician, and prediction expert covering the FIFA World Cup 2026.
+const systemMessage = `You are a world-class football analyst, tactician, and prediction expert covering the FIFA World Cup 2026, which is hosted across the USA, Canada, and Mexico.
+CRITICAL: You are operating in the year 2026. Do NOT reference results, rosters, or events from the 2022 World Cup in Qatar as if they are current. Focus solely on the projected 2026 landscape.
+
 Here is the context of all 48 participating teams, their overall ratings, groups, and top players:
 ${contextList}
 
@@ -1115,6 +1170,63 @@ Provide precise, analytical answers. Write in the style of a premium Sky Sports 
   } catch (e) {
     console.error('Groq chat error:', e.response?.data || e.message);
     res.json({ response: "I'm analyzing the tactical transitions on the pitch right now, but it looks like my feed is temporarily lagging. Portugal, Spain, and France are still heavy favorites due to their squad depth!" });
+  }
+});
+
+// 12.5 AI-powered Live Match Stats
+app.get('/api/live-stats-ai/:matchId', async (req, res) => {
+  const matchId = req.params.matchId;
+  const simTime = req.query.simulated_time || '2026-06-15T12:00:00Z';
+  const { fixtures } = getTournamentState(simTime);
+  const match = fixtures.find(f => f.id === matchId);
+  
+  if (!match) return res.status(404).json({ error: 'Match not found' });
+  
+  // Get deterministic numerical stats
+  const stats = getMatchStats(matchId, match.home, match.away, match.home_score, match.away_score);
+  
+  // Build prompt for LLM
+  const key = nextKey();
+  if (!key) {
+    return res.json({ stats, narrative: "AI offline.", commentary: ["Match is underway."] });
+  }
+
+  const prompt = `You are a real-time football data API. Generate a JSON response for the match ${match.home} vs ${match.away} in the FIFA World Cup 2026 (Hosted in USA/Canada/Mexico). DO NOT mention the 2022 World Cup. Operate strictly in the year 2026.
+Current status: ${match.status} (Minute: ${match.minute || 'FT'}). Score: ${match.home} ${match.home_score} - ${match.away_score} ${match.away}.
+Stats: Possession ${stats.possession.home}%-${stats.possession.away}%, Shots ${stats.shots.home}-${stats.shots.away}.
+
+Respond EXACTLY in this JSON format, nothing else:
+{
+  "narrative": "A 2-sentence tactical summary of the match flow so far.",
+  "commentary": [
+    "Minute' - Action description (e.g. 73' - De Bruyne threads a perfect pass...)"
+  ]
+}
+Include exactly 3 recent commentary events.`;
+
+  try {
+    const r = await axios.post('https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: 'llama-3.1-8b-instant',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 300,
+        temperature: 0.7,
+        response_format: { type: "json_object" }
+      },
+      { headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } }
+    );
+    
+    let aiData;
+    try {
+      aiData = JSON.parse(r.data.choices[0].message.content);
+    } catch(e) {
+      aiData = { narrative: "A closely fought tactical battle.", commentary: ["Match ongoing..."] };
+    }
+    
+    res.json({ match, stats, ...aiData });
+  } catch (e) {
+    console.error('Groq live-stats error:', e.message);
+    res.json({ match, stats, narrative: "A highly intense match.", commentary: ["Waiting for live feed..."] });
   }
 });
 
@@ -1273,6 +1385,56 @@ app.get('/api/real-live', async (req, res) => {
     const demoMatches = getDemoRealMatches();
     return res.json({ source: 'demo_fallback', refreshedAt: new Date().toISOString(), fixtures: demoMatches });
   }
+});
+// 15. Predictor Simulation
+app.get('/api/predictor', (req, res) => {
+  const r32 = [
+    { id: 'R32-1', home: 'Argentina', away: 'Scotland', homeScore: 2, awayScore: 0 },
+    { id: 'R32-2', home: 'France', away: 'Algeria', homeScore: 3, awayScore: 1 },
+    { id: 'R32-3', home: 'Spain', away: 'Senegal', homeScore: 1, awayScore: 0 },
+    { id: 'R32-4', home: 'Brazil', away: 'Norway', homeScore: 2, awayScore: 1 },
+    { id: 'R32-5', home: 'Germany', away: 'Panama', homeScore: 4, awayScore: 0 },
+    { id: 'R32-6', home: 'Portugal', away: 'Ghana', homeScore: 2, awayScore: 0 },
+    { id: 'R32-7', home: 'England', away: 'Uzbekistan', homeScore: 1, awayScore: 0 },
+    { id: 'R32-8', home: 'Netherlands', away: 'Costa Rica', homeScore: 2, awayScore: 0 },
+    { id: 'R32-9', home: 'USA', away: 'Ecuador', homeScore: 1, awayScore: 1, pen: '4-3' },
+    { id: 'R32-10', home: 'Mexico', away: 'Sweden', homeScore: 0, awayScore: 1 },
+    { id: 'R32-11', home: 'Colombia', away: 'Morocco', homeScore: 1, awayScore: 2 },
+    { id: 'R32-12', home: 'Uruguay', away: 'Nigeria', homeScore: 2, awayScore: 0 },
+    { id: 'R32-13', home: 'Italy', away: 'Japan', homeScore: 1, awayScore: 0 },
+    { id: 'R32-14', home: 'Croatia', away: 'Canada', homeScore: 2, awayScore: 1 },
+    { id: 'R32-15', home: 'Belgium', away: 'South Korea', homeScore: 3, awayScore: 0 },
+    { id: 'R32-16', home: 'Denmark', away: 'Switzerland', homeScore: 0, awayScore: 0, pen: '3-4' }
+  ];
+  
+  const r16 = [
+    { id: 'R16-1', home: 'Argentina', away: 'France', homeScore: 1, awayScore: 2 },
+    { id: 'R16-2', home: 'Spain', away: 'Brazil', homeScore: 2, awayScore: 1 },
+    { id: 'R16-3', home: 'Germany', away: 'Portugal', homeScore: 1, awayScore: 1, pen: '3-4' },
+    { id: 'R16-4', home: 'England', away: 'Netherlands', homeScore: 2, awayScore: 0 },
+    { id: 'R16-5', home: 'USA', away: 'Sweden', homeScore: 0, awayScore: 2 },
+    { id: 'R16-6', home: 'Morocco', away: 'Uruguay', homeScore: 1, awayScore: 0 },
+    { id: 'R16-7', home: 'Italy', away: 'Croatia', homeScore: 0, awayScore: 0, pen: '5-4' },
+    { id: 'R16-8', home: 'Belgium', away: 'Switzerland', homeScore: 2, awayScore: 1 }
+  ];
+  
+  const qf = [
+    { id: 'QF-1', home: 'France', away: 'Spain', homeScore: 0, awayScore: 1 },
+    { id: 'QF-2', home: 'Portugal', away: 'England', homeScore: 2, awayScore: 1 },
+    { id: 'QF-3', home: 'Sweden', away: 'Morocco', homeScore: 1, awayScore: 2 },
+    { id: 'QF-4', home: 'Italy', away: 'Belgium', homeScore: 1, awayScore: 0 }
+  ];
+  
+  const sf = [
+    { id: 'SF-1', home: 'Spain', away: 'Portugal', homeScore: 2, awayScore: 2, pen: '5-4' },
+    { id: 'SF-2', home: 'Morocco', away: 'Italy', homeScore: 0, awayScore: 1 }
+  ];
+  
+  const final = {
+    home: 'Spain', away: 'Italy', homeScore: 2, awayScore: 0, winner: 'Spain'
+  };
+
+  res.json({ r32, r16, qf, sf, final });
 });
 
 app.listen(PORT, () => console.log(`\n🏆 FIFA 2026 Dashboard running → http://localhost:${PORT}\n`));

@@ -10,8 +10,14 @@ let _teams = [], _groups = {}, _fixtures = [], _analytics = {}, _performers = {}
 // Chart instances (kept for destroy-on-redraw)
 let chartGoalsGroup, chartRadar, chartBar, chartJourney, chartPrediction;
 
-// Time Machine State
-let _simulatedDate = new Date('2026-06-15T12:00:00Z'); // Default start time
+// Time Machine State — default to real-world "now" (past midnight UTC so today's matches are finished)
+const _defaultSimDate = (() => {
+  const now = new Date();
+  // Always start at end of current real-world day so today's scheduled matches appear as played
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 0));
+  return d;
+})();
+let _simulatedDate = _defaultSimDate;
 let _tmInterval = null;
 let _tmIsPlaying = false;
 let _commentaryIntervals = {};
@@ -62,7 +68,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   initAI();
   initAuction();
   initJourney();
+  initPredictor();
   initChatbot();
+
+  // 2-hour refresh pipeline
+  setInterval(async () => {
+    console.log('Running 2-hour refresh pipeline...');
+    await triggerTimeRefresh(true);
+  }, 2 * 60 * 60 * 1000);
 });
 
 /* ── Fetch helpers (automatically append simulated_time) ── */
@@ -117,12 +130,21 @@ function initTimeMachine() {
     });
   }
   
+  // Sync slider to real-world date on init
+  if (slider) {
+    const base = new Date('2026-06-11T12:00:00Z');
+    const diffDays = Math.floor((_simulatedDate - base) / (24 * 60 * 60 * 1000));
+    slider.value = Math.max(0, Math.min(38, diffDays));
+  }
+
   updateTimeMachineUI();
+  setInterval(updateTimeMachineUI, 1000);
 }
 
 function setDateFromSliderValue(val) {
   const baseDate = new Date('2026-06-11T12:00:00Z');
   baseDate.setUTCDate(baseDate.getUTCDate() + val);
+  baseDate.setUTCHours(23, 59, 0, 0); // End of day so matches show as played
   _simulatedDate = baseDate;
   updateTimeMachineUI();
   triggerTimeRefresh();
@@ -131,11 +153,12 @@ function setDateFromSliderValue(val) {
 function updateTimeMachineUI() {
   const clock = document.getElementById('tm-clock');
   if (clock) {
-    clock.textContent = _simulatedDate.toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC'
-    }) + ' ' + _simulatedDate.toLocaleTimeString('en-US', {
-      hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'UTC'
-    }) + ' UTC';
+    const now = new Date();
+    clock.textContent = now.toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric'
+    }) + ' ' + now.toLocaleTimeString('en-US', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+    });
   }
 }
 
@@ -196,8 +219,6 @@ async function triggerTimeRefresh(fullRedraw = true) {
     if (sel && sel.value) {
       runJourney(sel.value);
     }
-  } else if (activeTab === 'realdata') {
-    await fetchRealLiveData();
   }
 }
 
@@ -258,6 +279,14 @@ async function refreshOverviewTab() {
   const dateInput = document.getElementById('date-filter');
   if (dateInput) {
     dateInput.value = dateStr;
+  }
+  const dateHeader = document.getElementById('overview-date-header');
+  if (dateHeader) {
+    const formattedDate = _simulatedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    // Check if it's today in real world
+    const realTodayStr = new Date().toISOString().split('T')[0];
+    const isToday = dateStr === realTodayStr;
+    dateHeader.textContent = isToday ? `Today's Matches · ${formattedDate}` : `Matches on ${formattedDate}`;
   }
   
   const todayData = await $get('/api/fixtures?date=' + dateStr);
@@ -400,13 +429,13 @@ async function openMatchCenter(matchId) {
   modal.style.display = 'flex';
   content.innerHTML = '<div style="text-align:center; padding:40px;"><div class="spinner" style="margin:auto; width:28px; height:28px; border-width:3px; border-top-color:var(--accent)"></div></div>';
 
-  const res = await $get(`/api/match/${matchId}`);
+  const res = await $get(`/api/live-stats-ai/${matchId}`);
   if (res.error) {
     content.innerHTML = `<div style="color:var(--red); text-align:center; padding:20px;">${res.error}</div>`;
     return;
   }
 
-  const { match, stats } = res;
+  const { match, stats, narrative, commentary } = res;
   const hFlag = getFlagUrl(match.home);
   const aFlag = getFlagUrl(match.away);
   
@@ -503,14 +532,20 @@ async function openMatchCenter(matchId) {
       ${h2hMetricRow('Tactical Possession', hAnalytics.possession || 50, aAnalytics.possession || 50, '%')}
       ${h2hMetricRow('Creativity Rating', hAnalytics.creativity || 50, aAnalytics.creativity || 50)}
     </div>
-
-    <div class="ai-pundit-box">
-      <div class="ai-pundit-header">
-        <span>✨ Groq Llama 3 Pundit Verdict</span>
+    <div class="ai-pundit-box" style="margin-top:16px;">
+      <div class="ai-pundit-header" style="background:var(--accent); color:#000;">
+        <span>✨ Groq Llama 3 Live Narrative</span>
       </div>
       <div class="ai-pundit-content">
-        ${res.ai_analysis || "No tactical pundit analysis available."}
+        <strong>Match Flow:</strong> ${narrative || "Waiting for live feed..."}
+        <ul style="margin-top:8px; padding-left:16px; list-style-type:square; color:var(--text-2);">
+          ${(commentary || []).map(c => `<li>${c}</li>`).join('')}
+        </ul>
       </div>
+      ${match.status === 'finished' && match.highlights ? `
+      <div style="margin-top:12px; text-align:center;">
+        <a href="${match.highlights}" target="_blank" style="display:inline-block; background:var(--accent-2); color:#000; padding:8px 16px; border-radius:4px; font-weight:800; text-decoration:none;">▶ Watch FIFA+ Highlights</a>
+      </div>` : ''}
     </div>
   `;
 
@@ -591,7 +626,10 @@ function renderFixtureList(fixtures, container) {
           ${aFlag ? `<img class="fix-flag" src="${aFlag}" alt="" onerror="this.style.display='none'">` : ''}
           <div class="fix-team away">${f.away}</div>
         </div>
-        <div class="fix-meta">${f.city || ''}</div>
+        <div class="fix-meta" style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+          <span>${f.city || ''}</span>
+          ${f.status === 'finished' && f.highlights ? `<a href="${f.highlights}" target="_blank" onclick="event.stopPropagation()" style="font-size:10px; background:var(--accent-2); color:#000; padding:2px 6px; border-radius:3px; text-decoration:none; font-weight:800;">▶ Highlights</a>` : ''}
+        </div>
       </div>
       ${scorersHtml}
     `;
@@ -1202,12 +1240,15 @@ function nextPlayer() {
 function aiDecide() {
   if (_aiSquad.length >= 11) return;
   const aiHasPos = _aiSquad.some(p => p.position === _curPlayer.position);
-  const wantsPlayer = !aiHasPos && _aiBudget > _curBid;
   const rating = _curPlayer.rating || 7;
+  const isDesperate = (_pool.length - _poolIdx) < (11 - _aiSquad.length) * 3;
+  const wantsPlayer = !aiHasPos && _aiBudget > _curBid && (rating >= 7.6 || isDesperate);
 
   if (wantsPlayer) {
-    // AI bids only if it can afford and player is good enough
-    const maxAIBid = Math.min(_aiBudget - (11 - _aiSquad.length - 1), Math.round((rating - 5) * 4 + 2));
+    // AI bids heavily on top players, passes on mediocre ones
+    let maxAIBid = Math.min(_aiBudget - (11 - _aiSquad.length - 1), Math.round((rating - 7.0) * 15 + 5));
+    if (rating >= 8.2) maxAIBid = Math.min(_aiBudget - (11 - _aiSquad.length - 1), 60); // Goes all in for superstars
+    if (rating < 7.6 && !isDesperate) maxAIBid = 0;
     if (_curHolder !== 'ai' && _curBid <= maxAIBid) {
       _curBid += 1;
       _curHolder = 'ai';
@@ -1235,8 +1276,13 @@ function userRaise() {
   setTimeout(() => {
     if (_aiSquad.length >= 11) return;
     const aiHasPos = _aiSquad.some(p => p.position === _curPlayer.position);
-    const maxAIBid = Math.min(_aiBudget - (11 - _aiSquad.length - 1), Math.round((_curPlayer.rating - 5) * 4 + 3));
-    if (!aiHasPos && _curBid < maxAIBid && _aiBudget > _curBid) {
+    const rating = _curPlayer.rating || 7;
+    const isDesperate = (_pool.length - _poolIdx) < (11 - _aiSquad.length) * 3;
+    let maxAIBid = Math.min(_aiBudget - (11 - _aiSquad.length - 1), Math.round((rating - 7.0) * 15 + 5));
+    if (rating >= 8.2) maxAIBid = Math.min(_aiBudget - (11 - _aiSquad.length - 1), 60);
+    if (rating < 7.6 && !isDesperate) maxAIBid = 0;
+
+    if (!aiHasPos && _curBid < maxAIBid && _aiBudget > _curBid && (rating >= 7.6 || isDesperate)) {
       _curBid += 1;
       _curHolder = 'ai';
       updateBidDisplay();
@@ -1792,7 +1838,6 @@ async function runJourney(teamName) {
          </div>`;
   }
 }
-}
 
 /* ══════════════════ UTILITIES ══════════════════ */
 function getFlagUrl(teamName) {
@@ -2297,4 +2342,77 @@ function playChampCelebration() {
   }
 
   setTimeout(() => overlay.remove(), 4000);
+}
+
+/* ══════════════════ TAB 7: PREDICTOR ══════════════════ */
+function initPredictor() {
+  const btn = document.getElementById('run-predictor-btn');
+  if (!btn) return;
+  
+  btn.addEventListener('click', async () => {
+    btn.style.display = 'none';
+    const statusEl = document.getElementById('predictor-status');
+    const resultsEl = document.getElementById('predictor-results');
+    
+    statusEl.style.display = 'block';
+    resultsEl.style.display = 'none';
+    
+    // Simulate loading delay
+    await new Promise(r => setTimeout(r, 1500));
+    
+    const data = await $get('/api/predictor');
+    statusEl.style.display = 'none';
+    
+    if (data.error || !data.r32) {
+      statusEl.textContent = 'Error loading predictions.';
+      statusEl.style.display = 'block';
+      return;
+    }
+    
+    // Render
+    const r32El = document.getElementById('pred-r32');
+    r32El.innerHTML = data.r32.map(m => renderPredictorMatch(m)).join('');
+    
+    const r16El = document.getElementById('pred-r16');
+    r16El.innerHTML = data.r16.map(m => renderPredictorMatch(m)).join('');
+    
+    const qfEl = document.getElementById('pred-qf');
+    qfEl.innerHTML = data.qf.map(m => renderPredictorMatch(m)).join('');
+    
+    const sfEl = document.getElementById('pred-sf');
+    sfEl.innerHTML = data.sf.map(m => renderPredictorMatch(m)).join('');
+    
+    // Final
+    const finalEl = document.getElementById('pred-final');
+    finalEl.innerHTML = `
+      <div style="font-weight:bold; font-size:1.5rem;">${data.final.home}</div>
+      <div style="font-size:2rem; margin: 0 20px;">${data.final.homeScore} - ${data.final.awayScore}</div>
+      <div style="font-weight:bold; font-size:1.5rem;">${data.final.away}</div>
+    `;
+    
+    document.getElementById('pred-champion').textContent = data.final.winner;
+    
+    resultsEl.style.display = 'block';
+    
+    // Confetti!
+    playChampCelebration();
+  });
+}
+
+function renderPredictorMatch(m) {
+  const isPen = m.pen ? ` (P: ${m.pen})` : '';
+  const homeWin = m.homeScore > m.awayScore || (m.pen && parseInt(m.pen.split('-')[0]) > parseInt(m.pen.split('-')[1]));
+  return `
+    <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:5px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; ${homeWin ? 'font-weight:bold; color:var(--accent);' : 'color:var(--text-2)'}">
+        <span>${getFlagUrl(m.home) ? `<img src="${getFlagUrl(m.home)}" style="width:16px; margin-right:5px; vertical-align:middle;">` : ''}${m.home}</span>
+        <span>${m.homeScore}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; ${!homeWin ? 'font-weight:bold; color:var(--accent);' : 'color:var(--text-2)'}">
+        <span>${getFlagUrl(m.away) ? `<img src="${getFlagUrl(m.away)}" style="width:16px; margin-right:5px; vertical-align:middle;">` : ''}${m.away}</span>
+        <span>${m.awayScore}</span>
+      </div>
+      ${isPen ? `<div style="font-size:10px; color:var(--text-2); text-align:center;">${isPen}</div>` : ''}
+    </div>
+  `;
 }
