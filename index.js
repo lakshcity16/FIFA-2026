@@ -254,6 +254,64 @@ function getFuzzySquadPlayer(teamName, namePart) {
   return found ? found.name : namePart;
 }
 
+function getMatchStats(matchId, home, away, homeScore, awayScore) {
+  let hash = 0;
+  for (let i = 0; i < matchId.length; i++) {
+    hash = matchId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const seedRandom = () => {
+    const x = Math.sin(hash++) * 10000;
+    return x - Math.floor(x);
+  };
+
+  const hRating = ANALYTICS[home]?.overall_rating || 7.0;
+  const aRating = ANALYTICS[away]?.overall_rating || 7.0;
+
+  // Possession
+  let hPos = Math.round(50 + (hRating - aRating) * 4 + (seedRandom() - 0.5) * 10);
+  hPos = Math.min(75, Math.max(25, hPos));
+  const aPos = 100 - hPos;
+
+  // Shots
+  const hShots = Math.round(homeScore * 2 + 5 + seedRandom() * 8);
+  const aShots = Math.round(awayScore * 2 + 4 + seedRandom() * 7);
+
+  // Shots on Target
+  const hSOT = Math.round(homeScore + seedRandom() * (hShots - homeScore));
+  const aSOT = Math.round(awayScore + seedRandom() * (aShots - awayScore));
+
+  // Passes
+  const hPasses = Math.round(hPos * 8 + seedRandom() * 100);
+  const aPasses = Math.round(aPos * 8 + seedRandom() * 100);
+
+  // Pass Accuracy
+  const hAcc = Math.round(70 + (hRating - 5) * 5 + seedRandom() * 10);
+  const aAcc = Math.round(70 + (aRating - 5) * 5 + seedRandom() * 10);
+
+  // Fouls
+  const hFouls = Math.round(8 + seedRandom() * 10);
+  const aFouls = Math.round(8 + seedRandom() * 10);
+
+  // Yellow Cards
+  const hYC = Math.round(seedRandom() * 3);
+  const aYC = Math.round(seedRandom() * 3);
+
+  // Red Cards
+  const hRC = seedRandom() < 0.05 ? 1 : 0;
+  const aRC = seedRandom() < 0.05 ? 1 : 0;
+
+  return {
+    possession: { home: hPos, away: aPos },
+    shots: { home: hShots, away: aShots },
+    shots_on_target: { home: Math.max(homeScore, hSOT), away: Math.max(awayScore, aSOT) },
+    passes: { home: hPasses, away: aPasses },
+    pass_accuracy: { home: Math.min(96, hAcc), away: Math.min(96, aAcc) },
+    fouls: { home: hFouls, away: aFouls },
+    yellow_cards: { home: hYC, away: aYC },
+    red_cards: { home: hRC, away: aRC }
+  };
+}
+
 // End of dynamic live engine
 
 // ── ROUTES ────────────────────────────────────────────────────
