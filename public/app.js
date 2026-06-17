@@ -756,6 +756,7 @@ function renderPerformers(type) {
 }
 
 function drawGoalsByGroupChart() {
+  if (typeof Chart === 'undefined') return;
   const groups = Object.keys(_groups).sort();
   const goalsByGroup = groups.map(g => {
     const teams = _groups[g];
@@ -992,6 +993,7 @@ function renderTeamOverview(container, data, pred, a) {
 
   // Radar
   setTimeout(() => {
+    if (typeof Chart === 'undefined') return;
     const ctx1 = document.getElementById('tp-radar')?.getContext('2d');
     if (ctx1) {
       if (chartRadar) chartRadar.destroy();
@@ -1126,6 +1128,7 @@ function renderTeamPrediction(container, pred, teamName) {
     <div style="height:200px"><canvas id="tp-pred-chart"></canvas></div>`;
 
   setTimeout(() => {
+    if (typeof Chart === 'undefined') return;
     const ctx = document.getElementById('tp-pred-chart')?.getContext('2d');
     if (!ctx) return;
     if (chartPrediction) chartPrediction.destroy();
@@ -1244,6 +1247,8 @@ async function runCompare() {
 
 /* ══════════════════ TAB 5: DRAFT & SQUAD BUILDER ══════════════════ */
 let _pool = [];
+let _auctionTimer = null;
+let _auctionSecondsLeft = 0;
 let _userDrafted = [];
 let _aiDrafted = [];
 let _userFormation = '4-3-3';
@@ -2178,6 +2183,7 @@ async function runJourney(teamName) {
   const chartSection = document.getElementById('journey-chart-section');
   chartSection.style.display = 'block';
   setTimeout(() => {
+    if (typeof Chart === 'undefined') return;
     const ctx = document.getElementById('chart-journey').getContext('2d');
     if (chartJourney) chartJourney.destroy();
     chartJourney = new Chart(ctx, {
