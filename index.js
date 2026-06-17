@@ -330,6 +330,80 @@ const REAL_MATCH_DETAILS = {
       yellow_cards: { home: 2, away: 2 },
       red_cards: { home: 0, away: 0 }
     }
+  },
+  // ── June 16, 2026 ──
+  M017: {
+    home_score: 3, away_score: 1,
+    scorers: [
+      { team: 'home', name: 'Kylian Mbappé', min: 66 },
+      { team: 'home', name: 'Bradley Barcola', min: 82 },
+      { team: 'away', name: 'Ibrahim Mbaye', min: 90 },
+      { team: 'home', name: 'Kylian Mbappé', min: 96 }
+    ],
+    stats: {
+      possession: { home: 58, away: 42 },
+      shots: { home: 16, away: 9 },
+      shots_on_target: { home: 7, away: 3 },
+      passes: { home: 530, away: 370 },
+      pass_accuracy: { home: 87, away: 76 },
+      fouls: { home: 10, away: 13 },
+      yellow_cards: { home: 1, away: 3 },
+      red_cards: { home: 0, away: 0 }
+    }
+  },
+  M018: {
+    home_score: 1, away_score: 4,
+    scorers: [
+      { team: 'away', name: 'Erling Haaland', min: 29 },
+      { team: 'home', name: 'Aymen Hussein', min: 39 },
+      { team: 'away', name: 'Erling Haaland', min: 43 },
+      { team: 'away', name: 'Leo Østigård', min: 76 },
+      { team: 'away', name: 'Aymen Hussein (o.g.)', min: 96 }
+    ],
+    stats: {
+      possession: { home: 38, away: 62 },
+      shots: { home: 7, away: 18 },
+      shots_on_target: { home: 2, away: 8 },
+      passes: { home: 310, away: 540 },
+      pass_accuracy: { home: 72, away: 86 },
+      fouls: { home: 16, away: 10 },
+      yellow_cards: { home: 3, away: 1 },
+      red_cards: { home: 0, away: 0 }
+    }
+  },
+  M019: {
+    home_score: 3, away_score: 0,
+    scorers: [
+      { team: 'home', name: 'Lionel Messi', min: 17 },
+      { team: 'home', name: 'Lionel Messi', min: 60 },
+      { team: 'home', name: 'Lionel Messi', min: 76 }
+    ],
+    stats: {
+      possession: { home: 55, away: 45 },
+      shots: { home: 10, away: 7 },
+      shots_on_target: { home: 5, away: 2 },
+      passes: { home: 490, away: 380 },
+      pass_accuracy: { home: 86, away: 78 },
+      fouls: { home: 9, away: 15 },
+      yellow_cards: { home: 1, away: 2 },
+      red_cards: { home: 0, away: 0 }
+    }
+  },
+  M020: {
+    home_score: 1, away_score: 0,
+    scorers: [
+      { team: 'home', name: 'Romano Schmid', min: 21 }
+    ],
+    stats: {
+      possession: { home: 56, away: 44 },
+      shots: { home: 13, away: 6 },
+      shots_on_target: { home: 4, away: 1 },
+      passes: { home: 470, away: 350 },
+      pass_accuracy: { home: 83, away: 74 },
+      fouls: { home: 12, away: 14 },
+      yellow_cards: { home: 2, away: 3 },
+      red_cards: { home: 0, away: 0 }
+    }
   }
 };
 
@@ -497,13 +571,14 @@ CSV_PLAYERS.forEach(p => {
   });
 });
 
-// Global fuzzy search helper
+// Global NLP-enhanced fuzzy search helper
 function findSquadPlayer(query) {
   if (!query) return null;
   const queryKey = getNameKey(query);
   if (!queryKey) return null;
   const queryParts = queryKey.split(' ');
   
+  // 1. Exact word-set match (original logic)
   for (const [team, squad] of Object.entries(SQUADS)) {
     const found = squad.find(p => {
       const pKey = getNameKey(p.name);
@@ -511,6 +586,47 @@ function findSquadPlayer(query) {
     });
     if (found) return { ...found, team };
   }
+  
+  // 2. Substring match — "mba" matches "mbappe"
+  const queryNorm = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  for (const [team, squad] of Object.entries(SQUADS)) {
+    const found = squad.find(p => {
+      const pNorm = p.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      return pNorm.includes(queryNorm);
+    });
+    if (found) return { ...found, team };
+  }
+  
+  // 3. Levenshtein distance fallback for typo tolerance
+  const levenshtein = (a, b) => {
+    const m = a.length, n = b.length;
+    const dp = Array.from({length: m+1}, () => Array(n+1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++)
+      for (let j = 1; j <= n; j++)
+        dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+    return dp[m][n];
+  };
+  
+  let bestMatch = null, bestDist = Infinity, bestTeam = null;
+  for (const [team, squad] of Object.entries(SQUADS)) {
+    for (const p of squad) {
+      const pNorm = p.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      // Check each word in player name against query
+      const pWords = pNorm.split(/\s+/);
+      for (const w of pWords) {
+        const dist = levenshtein(queryNorm, w);
+        if (dist < bestDist && dist <= 2) { // max 2 edits tolerance
+          bestDist = dist;
+          bestMatch = p;
+          bestTeam = team;
+        }
+      }
+    }
+  }
+  if (bestMatch) return { ...bestMatch, team: bestTeam };
+  
   return null;
 }
 
@@ -550,14 +666,14 @@ function generateDynamicMatchStats(match, minute) {
     };
   }
 
-  // 1. Check verified hardcoded real match details first (M001–M016)
+  // 1. Check verified hardcoded real match details first (M001–M016, plus M017-M020)
   const realDetail = REAL_MATCH_DETAILS[match.id];
   if (realDetail) {
     const status = isFT ? 'finished' : 'live';
     const currentMin = isFT ? 'FT' : `${minute}'`;
     
-    // Filter scorers that scored before or at the simulated minute
-    const elapsedMins = isFT ? 90 : minute;
+    // Filter scorers that scored before or at the simulated minute (allow up to 130 for FT to include ET/stoppage)
+    const elapsedMins = isFT ? 130 : minute;
     const liveScorers = realDetail.scorers.filter(s => s.min <= elapsedMins);
     
     const hScore = liveScorers.filter(s => s.team === 'home').length;
@@ -811,7 +927,7 @@ app.get('/api/teams', (req, res) => {
 
 // 2. All 12 groups with live standings
 app.get('/api/groups', (req, res) => {
-  const simTime = req.query.simulated_time || '2026-06-15T12:00:00Z';
+  const simTime = req.query.simulated_time || new Date().toISOString();
   const { groups } = getTournamentState(simTime);
   res.json({ groups });
 });
@@ -882,7 +998,7 @@ app.get('/api/match/:id/highlights-redirect', async (req, res) => {
 // 3. Single team full profile
 app.get('/api/team/:name', (req, res) => {
   const name = decodeURIComponent(req.params.name);
-  const simTime = req.query.simulated_time || '2026-06-15T12:00:00Z';
+  const simTime = req.query.simulated_time || new Date().toISOString();
   const { fixtures: allFix, groups, playerStats } = getTournamentState(simTime);
 
   const analytics = ANALYTICS[name];
@@ -934,7 +1050,7 @@ app.get('/api/team/:name', (req, res) => {
 
 // 4. All fixtures (with optional date filter)
 app.get('/api/fixtures', (req, res) => {
-  const simTime = req.query.simulated_time || '2026-06-15T12:00:00Z';
+  const simTime = req.query.simulated_time || new Date().toISOString();
   console.log(`[API /api/fixtures] query simulated_time = ${req.query.simulated_time}, resolved simTime = ${simTime}`);
   const { fixtures } = getTournamentState(simTime);
   let list = fixtures;
@@ -955,7 +1071,7 @@ app.get('/api/fixtures', (req, res) => {
 
 // 5. Top performers (dynamic)
 app.get('/api/performers', (req, res) => {
-  const simTime = req.query.simulated_time || '2026-06-15T12:00:00Z';
+  const simTime = req.query.simulated_time || new Date().toISOString();
   const { performers } = getTournamentState(simTime);
   res.json(performers);
 });
@@ -963,7 +1079,7 @@ app.get('/api/performers', (req, res) => {
 // 6. ML Predictions — Monte Carlo sim
 app.get('/api/predict/:team', (req, res) => {
   const name = decodeURIComponent(req.params.team);
-  const simTime = req.query.simulated_time || '2026-06-15T12:00:00Z';
+  const simTime = req.query.simulated_time || new Date().toISOString();
   const { groups } = getTournamentState(simTime);
   
   const a = ANALYTICS[name];
@@ -1000,7 +1116,7 @@ app.get('/api/predict/:team', (req, res) => {
 // 7. Journey Simulator (BFS Full Knockout Bracket Simulator)
 app.get('/api/journey/:team', (req, res) => {
   const name = decodeURIComponent(req.params.team);
-  const simTime = req.query.simulated_time || '2026-06-15T12:00:00Z';
+  const simTime = req.query.simulated_time || new Date().toISOString();
   const { fixtures: allFix, groups } = getTournamentState(simTime);
   
   const a = ANALYTICS[name];
@@ -1592,7 +1708,7 @@ app.post('/api/auction/simulate', (req, res) => {
 // 11. Match Details Center (New Endpoint)
 app.get('/api/match/:id', async (req, res) => {
   const matchId = req.params.id;
-  const simTime = req.query.simulated_time || '2026-06-15T12:00:00Z';
+  const simTime = req.query.simulated_time || new Date().toISOString();
   const { fixtures } = getTournamentState(simTime);
 
   const match = fixtures.find(f => f.id === matchId);
@@ -1609,7 +1725,17 @@ app.get('/api/match/:id', async (req, res) => {
 
   if (key) {
     try {
-      const prompt = `You are a world-class football pundit and tactical analyst.
+      const isUpcoming = match.status === 'upcoming';
+      const prompt = isUpcoming ? `You are a world-class football pundit and tactical analyst.
+Match: ${match.home} vs ${match.away} (Upcoming Match)
+- ${match.home} (FIFA Overall: ${hAnalytics.overall_rating}/10, Offense: ${hAnalytics.offense}/100, Defense: ${hAnalytics.defense}/100, Passing: ${hAnalytics.passing}%, Creativity: ${hAnalytics.creativity}/100)
+- ${match.away} (FIFA Overall: ${aAnalytics.overall_rating}/10, Offense: ${aAnalytics.offense}/100, Defense: ${aAnalytics.defense}/100, Passing: ${aAnalytics.passing}%, Creativity: ${aAnalytics.creativity}/100)
+
+Provide a premium match preview under 120 words.
+Structure clearly with bold headers:
+**Players to Watch**: Key players that will impact the game.
+**Tactical Expectations**: How will the game flow?
+**Predicted Score**: Specific scoreline prediction and why.` : `You are a world-class football pundit and tactical analyst.
 Match: ${match.home} vs ${match.away}
 - ${match.home} (FIFA Overall: ${hAnalytics.overall_rating}/10, Offense: ${hAnalytics.offense}/100, Defense: ${hAnalytics.defense}/100, Passing: ${hAnalytics.passing}%, Creativity: ${hAnalytics.creativity}/100)
 - ${match.away} (FIFA Overall: ${aAnalytics.overall_rating}/10, Offense: ${aAnalytics.offense}/100, Defense: ${aAnalytics.defense}/100, Passing: ${aAnalytics.passing}%, Creativity: ${aAnalytics.creativity}/100)
@@ -1720,7 +1846,7 @@ Provide precise, analytical answers. Write in the style of a premium Sky Sports 
 // 12.5 AI-powered Live Match Stats
 app.get('/api/live-stats-ai/:matchId', async (req, res) => {
   const matchId = req.params.matchId;
-  const simTime = req.query.simulated_time || '2026-06-15T12:00:00Z';
+  const simTime = req.query.simulated_time || new Date().toISOString();
   const { fixtures } = getTournamentState(simTime);
   const match = fixtures.find(f => f.id === matchId);
   
@@ -1785,7 +1911,7 @@ app.get('/api/live', async (req, res) => {
       return res.json({ source: 'sofascore', events: r.data.events || [] });
     } catch {}
   }
-  const simTime = req.query.simulated_time || '2026-06-15T12:00:00Z';
+  const simTime = req.query.simulated_time || new Date().toISOString();
   const { fixtures } = getTournamentState(simTime);
   const todayMatches = fixtures.filter(f => f.date === simTime.split('T')[0]);
   res.json({ source: 'dataset', events: todayMatches.map(f => ({

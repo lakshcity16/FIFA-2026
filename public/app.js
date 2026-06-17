@@ -90,13 +90,8 @@ function showWebSocketToast(event) {
 // Chart instances (kept for destroy-on-redraw)
 let chartGoalsGroup, chartRadar, chartBar, chartJourney, chartPrediction;
 
-// Time Machine State — default to real-world "now" (past midnight UTC so today's matches are finished)
-const _defaultSimDate = (() => {
-  const now = new Date();
-  // Always start at end of current real-world day so today's scheduled matches appear as played
-  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 0));
-  return d;
-})();
+// Time Machine State — default to real-world "now" (actual current time)
+const _defaultSimDate = new Date();
 let _simulatedDate = _defaultSimDate;
 let _tmInterval = null;
 let _tmIsPlaying = false;
@@ -1326,13 +1321,78 @@ const FORMATIONS = {
     { id: 'CAM', label: 'CAM', bottom: '60%', left: '50%', type: 'Midfielder' },
     { id: 'RAM', label: 'RAM', bottom: '65%', left: '80%', type: 'Midfielder' },
     { id: 'ST', label: 'ST', bottom: '82%', left: '50%', type: 'Forward' }
+  ],
+  '3-4-3': [
+    { id: 'GK', label: 'GK', bottom: '5%', left: '50%', type: 'Goalkeeper' },
+    { id: 'LCB', label: 'LCB', bottom: '20%', left: '25%', type: 'Defender' },
+    { id: 'CB', label: 'CB', bottom: '18%', left: '50%', type: 'Defender' },
+    { id: 'RCB', label: 'RCB', bottom: '20%', left: '75%', type: 'Defender' },
+    { id: 'LWB', label: 'LWB', bottom: '48%', left: '12%', type: 'Midfielder' },
+    { id: 'LCM', label: 'LCM', bottom: '44%', left: '35%', type: 'Midfielder' },
+    { id: 'RCM', label: 'RCM', bottom: '44%', left: '65%', type: 'Midfielder' },
+    { id: 'RWB', label: 'RWB', bottom: '48%', left: '88%', type: 'Midfielder' },
+    { id: 'LW', label: 'LW', bottom: '78%', left: '18%', type: 'Forward' },
+    { id: 'ST', label: 'ST', bottom: '82%', left: '50%', type: 'Forward' },
+    { id: 'RW', label: 'RW', bottom: '78%', left: '82%', type: 'Forward' }
+  ],
+  '4-1-4-1': [
+    { id: 'GK', label: 'GK', bottom: '5%', left: '50%', type: 'Goalkeeper' },
+    { id: 'LB', label: 'LB', bottom: '22%', left: '15%', type: 'Defender' },
+    { id: 'LCB', label: 'LCB', bottom: '20%', left: '38%', type: 'Defender' },
+    { id: 'RCB', label: 'RCB', bottom: '20%', left: '62%', type: 'Defender' },
+    { id: 'RB', label: 'RB', bottom: '22%', left: '85%', type: 'Defender' },
+    { id: 'CDM', label: 'CDM', bottom: '38%', left: '50%', type: 'Midfielder' },
+    { id: 'LM', label: 'LM', bottom: '58%', left: '15%', type: 'Midfielder' },
+    { id: 'LCM', label: 'LCM', bottom: '55%', left: '38%', type: 'Midfielder' },
+    { id: 'RCM', label: 'RCM', bottom: '55%', left: '62%', type: 'Midfielder' },
+    { id: 'RM', label: 'RM', bottom: '58%', left: '85%', type: 'Midfielder' },
+    { id: 'ST', label: 'ST', bottom: '82%', left: '50%', type: 'Forward' }
+  ],
+  '4-5-1': [
+    { id: 'GK', label: 'GK', bottom: '5%', left: '50%', type: 'Goalkeeper' },
+    { id: 'LB', label: 'LB', bottom: '22%', left: '15%', type: 'Defender' },
+    { id: 'LCB', label: 'LCB', bottom: '20%', left: '38%', type: 'Defender' },
+    { id: 'RCB', label: 'RCB', bottom: '20%', left: '62%', type: 'Defender' },
+    { id: 'RB', label: 'RB', bottom: '22%', left: '85%', type: 'Defender' },
+    { id: 'LM', label: 'LM', bottom: '48%', left: '12%', type: 'Midfielder' },
+    { id: 'LCM', label: 'LCM', bottom: '46%', left: '32%', type: 'Midfielder' },
+    { id: 'CM', label: 'CM', bottom: '44%', left: '50%', type: 'Midfielder' },
+    { id: 'RCM', label: 'RCM', bottom: '46%', left: '68%', type: 'Midfielder' },
+    { id: 'RM', label: 'RM', bottom: '48%', left: '88%', type: 'Midfielder' },
+    { id: 'ST', label: 'ST', bottom: '82%', left: '50%', type: 'Forward' }
+  ],
+  '3-4-1-2': [
+    { id: 'GK', label: 'GK', bottom: '5%', left: '50%', type: 'Goalkeeper' },
+    { id: 'LCB', label: 'LCB', bottom: '20%', left: '25%', type: 'Defender' },
+    { id: 'CB', label: 'CB', bottom: '18%', left: '50%', type: 'Defender' },
+    { id: 'RCB', label: 'RCB', bottom: '20%', left: '75%', type: 'Defender' },
+    { id: 'LWB', label: 'LWB', bottom: '46%', left: '12%', type: 'Midfielder' },
+    { id: 'LCM', label: 'LCM', bottom: '42%', left: '35%', type: 'Midfielder' },
+    { id: 'RCM', label: 'RCM', bottom: '42%', left: '65%', type: 'Midfielder' },
+    { id: 'RWB', label: 'RWB', bottom: '46%', left: '88%', type: 'Midfielder' },
+    { id: 'CAM', label: 'CAM', bottom: '62%', left: '50%', type: 'Midfielder' },
+    { id: 'LS', label: 'LS', bottom: '80%', left: '35%', type: 'Forward' },
+    { id: 'RS', label: 'RS', bottom: '80%', left: '65%', type: 'Forward' }
+  ],
+  '5-4-1': [
+    { id: 'GK', label: 'GK', bottom: '5%', left: '50%', type: 'Goalkeeper' },
+    { id: 'LWB', label: 'LWB', bottom: '24%', left: '10%', type: 'Defender' },
+    { id: 'LCB', label: 'LCB', bottom: '20%', left: '28%', type: 'Defender' },
+    { id: 'CB', label: 'CB', bottom: '18%', left: '50%', type: 'Defender' },
+    { id: 'RCB', label: 'RCB', bottom: '20%', left: '72%', type: 'Defender' },
+    { id: 'RWB', label: 'RWB', bottom: '24%', left: '90%', type: 'Defender' },
+    { id: 'LM', label: 'LM', bottom: '48%', left: '18%', type: 'Midfielder' },
+    { id: 'LCM', label: 'LCM', bottom: '46%', left: '38%', type: 'Midfielder' },
+    { id: 'RCM', label: 'RCM', bottom: '46%', left: '62%', type: 'Midfielder' },
+    { id: 'RM', label: 'RM', bottom: '48%', left: '82%', type: 'Midfielder' },
+    { id: 'ST', label: 'ST', bottom: '80%', left: '50%', type: 'Forward' }
   ]
 };
 
 function initAuction() {
   document.getElementById('start-auction-btn').addEventListener('click', startDraftAuction);
   document.getElementById('draft-search').addEventListener('input', (e) => {
-    _draftSearchQuery = e.target.value.toLowerCase();
+    _draftSearchQuery = e.target.value;
     renderDraftPool();
   });
   document.getElementById('draft-position-filter').addEventListener('change', (e) => {
@@ -1429,11 +1489,50 @@ function renderDraftPool() {
   const grid = document.getElementById('draft-pool-grid');
   grid.innerHTML = '';
 
+  // NLP helper: normalize diacritics & lowercase
+  const nlpNormalize = (str) => {
+    if (!str) return '';
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  };
+
+  // Position alias map for natural language queries
+  const POS_ALIASES = {
+    'keeper': ['GK'], 'goalkeeper': ['GK'], 'goalie': ['GK'],
+    'defender': ['LB','LCB','RCB','RB','CB','LWB','RWB'], 'back': ['LB','LCB','RCB','RB','CB','LWB','RWB'],
+    'fullback': ['LB','RB','LWB','RWB'], 'centerback': ['LCB','RCB','CB'], 'cb': ['LCB','RCB','CB'],
+    'midfielder': ['CDM','CM','CAM','LM','RM','LCM','RCM','LDM','RDM','LAM','RAM'],
+    'mid': ['CDM','CM','CAM','LM','RM','LCM','RCM'], 'playmaker': ['CAM','CM'],
+    'forward': ['LW','RW','ST','LS','RS'], 'attacker': ['LW','RW','ST','LS','RS'],
+    'striker': ['ST','LS','RS'], 'winger': ['LW','RW','LM','RM'],
+    'wing': ['LW','RW','LM','RM'], 'centre': ['CM','CDM','CAM','CB','LCB','RCB'],
+    'defensive': ['CDM','LDM','RDM','CB','LCB','RCB'],
+    'brazilian': [], 'french': [], 'german': [], 'english': [], 'spanish': [], 'argentine': [], 'portuguese': []
+  };
+
   const filtered = _pool.filter(p => {
     const isDrafted = _userDrafted.some(x => x.name === p.name) || _aiDrafted.some(x => x.name === p.name);
     if (isDrafted) return false;
 
-    if (_draftSearchQuery && !p.name.toLowerCase().includes(_draftSearchQuery)) return false;
+    // NLP search
+    if (_draftSearchQuery && _draftSearchQuery.trim() !== '') {
+      const queryNorm = nlpNormalize(_draftSearchQuery);
+      const tokens = queryNorm.split(/\s+/).filter(Boolean);
+      const pName = nlpNormalize(p.name);
+      const pTeam = nlpNormalize(p.team);
+      const pClub = nlpNormalize(p.club || '');
+      const pPos = nlpNormalize(p.position);
+      const searchable = `${pName} ${pTeam} ${pClub} ${pPos}`;
+
+      const match = tokens.every(token => {
+        // Check if token is a position alias
+        if (POS_ALIASES[token] && POS_ALIASES[token].length > 0) {
+          return POS_ALIASES[token].some(alias => p.position === alias);
+        }
+        // Substring match against name, team, club, position
+        return searchable.includes(token);
+      });
+      if (!match) return false;
+    }
 
     if (_draftPosFilter !== 'ALL') {
       const isGK = p.position === 'GK';
