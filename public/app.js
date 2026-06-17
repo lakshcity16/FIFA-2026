@@ -1630,11 +1630,10 @@ function draftPlayer(who, player) {
 function aiDraftTurn() {
   if (_aiDrafted.length >= 15) return;
 
-  const formationSlots = FORMATIONS[_aiFormation];
-  const neededGK = 1;
-  const neededDEF = formationSlots.filter(s => s.type === 'Defender').length;
-  const neededMID = formationSlots.filter(s => s.type === 'Midfielder').length;
-  const neededFWD = formationSlots.filter(s => s.type === 'Forward').length;
+  const neededGK = 2;
+  const neededDEF = 5;
+  const neededMID = 4;
+  const neededFWD = 4;
 
   const currentGK = _aiDrafted.filter(p => p.position === 'GK').length;
   const currentDEF = _aiDrafted.filter(p => ['LB', 'LCB', 'RCB', 'RB', 'CB', 'LWB', 'RWB'].includes(p.position)).length;
@@ -1941,10 +1940,10 @@ async function simulateDraftMatch() {
     let pIdx = remainingAI.findIndex(p => {
       const nat = p.position;
       const slotType = slot.type;
-      if (slotType === 'Goalkeeper' && nat === 'Goalkeeper') return true;
-      if (slotType === 'Defender' && nat === 'Defender') return true;
-      if (slotType === 'Midfielder' && nat === 'Midfielder') return true;
-      if (slotType === 'Forward' && nat === 'Forward') return true;
+      if (slotType === 'Goalkeeper' && nat === 'GK') return true;
+      if (slotType === 'Defender' && ['LB', 'LCB', 'RCB', 'RB', 'CB', 'LWB', 'RWB'].includes(nat)) return true;
+      if (slotType === 'Midfielder' && ['CDM', 'CM', 'CAM'].includes(nat)) return true;
+      if (slotType === 'Forward' && ['LW', 'RW', 'ST'].includes(nat)) return true;
       return false;
     });
 
