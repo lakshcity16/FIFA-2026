@@ -543,25 +543,45 @@ function getMatchMinute(kickoffTime, nowStr) {
 function generateDynamicMatchStats(match, minute) {
   const isFT = minute === 'FT';
 
-  // 1. Check verified hardcoded real match details first
-  const realDetail = REAL_MATCH_DETAILS[match.id];
-  if (realDetail && (isFT || match.is_played)) {
-    return {
-      is_played: true,
-      status: 'finished',
-      minute: 'FT',
-      home_score: realDetail.home_score,
-      away_score: realDetail.away_score,
-      scorers: realDetail.scorers,
-      stats: {
-        possession: [realDetail.stats.possession.home, realDetail.stats.possession.away],
-        shots: [realDetail.stats.shots.home, realDetail.stats.shots.away],
-        shotsOnTarget: [realDetail.stats.shots_on_target.home, realDetail.stats.shots_on_target.away]
-      }
+  if (minute === null) {
+    return { 
+      is_played: false, status: 'upcoming', minute: null, 
+      home_score: 0, away_score: 0, scorers: [], stats: null 
     };
   }
 
-  // 2. Check API-Football dynamic live sync cache
+  // 1. Check verified hardcoded real match details first (M001–M016)
+  const realDetail = REAL_MATCH_DETAILS[match.id];
+  if (realDetail) {
+    const status = isFT ? 'finished' : 'live';
+    const currentMin = isFT ? 'FT' : `${minute}'`;
+    
+    // Filter scorers that scored before or at the simulated minute
+    const elapsedMins = isFT ? 90 : minute;
+    const liveScorers = realDetail.scorers.filter(s => s.min <= elapsedMins);
+    
+    const hScore = liveScorers.filter(s => s.team === 'home').length;
+    const aScore = liveScorers.filter(s => s.team === 'away').length;
+
+    const statsObj = getMatchStats(match.id, match.home, match.away, hScore, aScore);
+    const stats = {
+      possession: [statsObj.possession.home, statsObj.possession.away],
+      shots: [statsObj.shots.home, statsObj.shots.away],
+      shotsOnTarget: [statsObj.shots_on_target.home, statsObj.shots_on_target.away]
+    };
+
+    return {
+      is_played: isFT,
+      status: status,
+      minute: currentMin,
+      home_score: hScore,
+      away_score: aScore,
+      scorers: liveScorers,
+      stats: stats
+    };
+  }
+
+  // 2. Check API-Football dynamic live sync cache (M017 onwards)
   const localHomeNorm = normalizeTeamName(match.home);
   const localAwayNorm = normalizeTeamName(match.away);
   const apiMatch = apiWorldCupFixtures.find(f => {
@@ -576,12 +596,11 @@ function generateDynamicMatchStats(match, minute) {
     const isLive = ['1H', '2H', 'HT', 'ET', 'P'].includes(statusShort);
     
     if (isFinished || isLive) {
-      const hScore = apiMatch.goals.home !== null ? apiMatch.goals.home : 0;
-      const aScore = apiMatch.goals.away !== null ? apiMatch.goals.away : 0;
-      const elapsed = apiMatch.fixture.status.elapsed || 90;
-      
+      const realElapsed = apiMatch.fixture.status.elapsed || 90;
+      const simElapsed = isFT ? realElapsed : Math.min(realElapsed, minute);
+
       // Parse real goalscorers and events from the API response if available
-      const scorers = [];
+      const allScorers = [];
       if (apiMatch.events && Array.isArray(apiMatch.events)) {
         apiMatch.events.forEach(ev => {
           if (ev.type === 'Goal') {
@@ -592,7 +611,7 @@ function generateDynamicMatchStats(match, minute) {
             } else if (ev.detail === 'Penalty') {
               name += ' (pen)';
             }
-            scorers.push({
+            allScorers.push({
               team: isHome ? 'home' : 'away',
               name: name,
               min: ev.time.elapsed || 90
@@ -601,27 +620,12 @@ function generateDynamicMatchStats(match, minute) {
         });
       }
 
-      // Procedural fallback for scorers if they are empty but the score is not zero
-      if (scorers.length === 0 && (hScore > 0 || aScore > 0)) {
-        const hash = match.id.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0);
-        const rng = (seed) => { let t = seed += 0x6D2B79F5; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-        
-        for (let g = 1; g <= hScore; g++) {
-          scorers.push({
-            team: 'home',
-            name: getFuzzySquadPlayer(match.home, 'Forward'),
-            min: Math.floor(rng(hash + g * 10) * elapsed) + 1
-          });
-        }
-        for (let g = 1; g <= aScore; g++) {
-          scorers.push({
-            team: 'away',
-            name: getFuzzySquadPlayer(match.away, 'Forward'),
-            min: Math.floor(rng(hash + g * 20 + 5) * elapsed) + 1
-          });
-        }
-      }
-      scorers.sort((a,b) => a.min - b.min);
+      // Filter events by simulated time
+      const liveScorers = allScorers.filter(s => s.min <= simElapsed);
+      liveScorers.sort((a,b) => a.min - b.min);
+
+      const hScore = liveScorers.filter(s => s.team === 'home').length;
+      const aScore = liveScorers.filter(s => s.team === 'away').length;
 
       // Generate realistic stats dynamically using the team metrics in getMatchStats
       const statsObj = getMatchStats(match.id, match.home, match.away, hScore, aScore);
@@ -632,93 +636,21 @@ function generateDynamicMatchStats(match, minute) {
       };
 
       return {
-        is_played: isFinished,
-        status: isFinished ? 'finished' : 'live',
-        minute: isFinished ? 'FT' : `${elapsed}'`,
+        is_played: isFinished && isFT,
+        status: isFinished && isFT ? 'finished' : 'live',
+        minute: isFinished && isFT ? 'FT' : `${simElapsed}'`,
         home_score: hScore,
         away_score: aScore,
-        scorers: scorers,
+        scorers: liveScorers,
         stats: stats
       };
     }
   }
 
-  if (minute === null) {
-    return { 
-      is_played: false, status: 'upcoming', minute: null, 
-      home_score: 0, away_score: 0, scorers: [], stats: null 
-    };
-  }
-
-  // 3. Fallback to procedural simulation
-  const hash = match.id.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0);
-  const rng = (seed) => { let t = seed += 0x6D2B79F5; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-  
-  const getPower = t => (ANALYTICS[t] ? ANALYTICS[t].overall_rating : 7.0);
-  const homeAdv = getPower(match.home) * 1.1;
-  const awayAdv = getPower(match.away);
-  const total = homeAdv + awayAdv;
-  const hProb = homeAdv / total;
-
-  let hScore = 0; let aScore = 0;
-  const scorers = [];
-  
-  const currentMin = isFT ? 90 : minute;
-  const hasPresetScore = match.is_played && match.home_score !== undefined && match.away_score !== undefined;
-  
-  if (hasPresetScore) {
-    hScore = match.home_score;
-    aScore = match.away_score;
-    
-    for (let g = 1; g <= hScore; g++) {
-      const goalMin = Math.floor(rng(hash + g * 10) * currentMin) + 1;
-      scorers.push({
-        team: 'home',
-        name: getFuzzySquadPlayer(match.home, 'Forward'),
-        min: goalMin
-      });
-    }
-    for (let g = 1; g <= aScore; g++) {
-      const goalMin = Math.floor(rng(hash + g * 20 + 5) * currentMin) + 1;
-      scorers.push({
-        team: 'away',
-        name: getFuzzySquadPlayer(match.away, 'Forward'),
-        min: goalMin
-      });
-    }
-  } else {
-    const maxGoals = Math.floor(rng(hash) * 5); 
-    for (let g = 1; g <= maxGoals; g++) {
-      const goalMin = Math.floor(rng(hash + g) * 90) + 1;
-      if (goalMin <= currentMin) {
-        const isHomeGoal = rng(hash + g * 2) < hProb;
-        if (isHomeGoal) hScore++; else aScore++;
-        scorers.push({
-          team: isHomeGoal ? 'home' : 'away',
-          name: isHomeGoal ? getFuzzySquadPlayer(match.home, 'Forward') : getFuzzySquadPlayer(match.away, 'Forward'),
-          min: goalMin
-        });
-      }
-    }
-  }
-
-  scorers.sort((a,b) => a.min - b.min);
-
-  return {
-    is_played: isFT || match.is_played,
-    status: isFT || match.is_played ? 'finished' : 'live',
-    minute: isFT || match.is_played ? 'FT' : `${currentMin}'`,
-    home_score: hScore,
-    away_score: aScore,
-    scorers: scorers,
-    stats: (() => {
-      const statsObj = getMatchStats(match.id, match.home, match.away, hScore, aScore);
-      return {
-        possession: [statsObj.possession.home, statsObj.possession.away],
-        shots: [statsObj.shots.home, statsObj.shots.away],
-        shotsOnTarget: [statsObj.shots_on_target.home, statsObj.shots_on_target.away]
-      };
-    })()
+  // 3. Fallback: If no real data is available, do not simulate fictional results.
+  return { 
+    is_played: false, status: 'upcoming', minute: null, 
+    home_score: 0, away_score: 0, scorers: [], stats: null 
   };
 }
 
@@ -1329,9 +1261,8 @@ Be specific, use the data provided, and sound like a Sky Sports analyst.`;
   }
 });
 
-// 9. Auction Pool — top 5 players per sub-position from real WC 2026 CSV data
+// 9. Auction Pool — top players per sub-position from real WC 2026 CSV data
 app.get('/api/auction/pool', (req, res) => {
-  // Position buckets: GK, LB, LCB, RCB, RB, CDM, CM, CAM, LW, RW, ST
   const posMapping = {
     GK: p => p.position === 'Goalkeeper',
     LCB: p => p.position === 'Defender',
@@ -1352,19 +1283,19 @@ app.get('/api/auction/pool', (req, res) => {
   const pool = [];
   const used = new Set();
 
-  // Build GKs from top 5 GKs in CSV
+  // Build GKs from top 8 GKs in CSV
   const gks = realPlayers.filter(p => p.position === 'Goalkeeper').sort((a,b) => b.rating - a.rating);
-  gks.slice(0, 5).forEach((p, i) => {
+  gks.slice(0, 8).forEach((p, i) => {
     if (!used.has(p.name)) {
       used.add(p.name);
-      pool.push({ ...p, position: 'GK', tier: p.rating >= 8.0 ? 'Elite' : p.rating >= 7.5 ? 'Star' : 'Good', base_cp: 1, max_expected_cp: Math.max(1, Math.round((p.rating - 6.0) * 12)) });
+      pool.push({ ...p, position: 'GK', tier: p.rating >= 8.0 ? 'Elite' : p.rating >= 7.5 ? 'Star' : 'Good' });
     }
   });
 
-  // Build defenders: 5 per sub-position but share the defender pool
+  // Build defenders: 10 per sub-position
   const defenders = realPlayers.filter(p => p.position === 'Defender').sort((a,b) => b.rating - a.rating);
   const defSlots = ['LCB', 'RCB', 'LB', 'RB'];
-  const defPerSlot = 5;
+  const defPerSlot = 10;
   let defIdx = 0;
   defenders.forEach(p => {
     if (used.has(p.name)) return;
@@ -1372,35 +1303,35 @@ app.get('/api/auction/pool', (req, res) => {
     if (pool.filter(x => x.position === slot).length < defPerSlot) {
       used.add(p.name);
       defIdx++;
-      pool.push({ ...p, position: slot, tier: p.rating >= 8.0 ? 'Elite' : p.rating >= 7.5 ? 'Star' : 'Good', base_cp: 1, max_expected_cp: Math.max(1, Math.round((p.rating - 6.0) * 12)) });
+      pool.push({ ...p, position: slot, tier: p.rating >= 8.0 ? 'Elite' : p.rating >= 7.5 ? 'Star' : 'Good' });
     }
   });
 
-  // Build midfielders: CDM, CM, CAM
+  // Build midfielders: 10 per sub-position
   const mids = realPlayers.filter(p => p.position === 'Midfielder').sort((a,b) => b.rating - a.rating);
   const midSlots = ['CDM', 'CM', 'CAM'];
   let midIdx = 0;
   mids.forEach(p => {
     if (used.has(p.name)) return;
     const slot = midSlots[midIdx % midSlots.length];
-    if (pool.filter(x => x.position === slot).length < 5) {
+    if (pool.filter(x => x.position === slot).length < 10) {
       used.add(p.name);
       midIdx++;
-      pool.push({ ...p, position: slot, tier: p.rating >= 8.0 ? 'Elite' : p.rating >= 7.5 ? 'Star' : 'Good', base_cp: 1, max_expected_cp: Math.max(1, Math.round((p.rating - 6.0) * 12)) });
+      pool.push({ ...p, position: slot, tier: p.rating >= 8.0 ? 'Elite' : p.rating >= 7.5 ? 'Star' : 'Good' });
     }
   });
 
-  // Build forwards: LW, RW, ST
+  // Build forwards: 10 per sub-position
   const fwds = realPlayers.filter(p => p.position === 'Forward').sort((a,b) => b.rating - a.rating);
   const fwdSlots = ['ST', 'LW', 'RW'];
   let fwdIdx = 0;
   fwds.forEach(p => {
     if (used.has(p.name)) return;
     const slot = fwdSlots[fwdIdx % fwdSlots.length];
-    if (pool.filter(x => x.position === slot).length < 5) {
+    if (pool.filter(x => x.position === slot).length < 10) {
       used.add(p.name);
       fwdIdx++;
-      pool.push({ ...p, position: slot, tier: p.rating >= 8.0 ? 'Elite' : p.rating >= 7.5 ? 'Star' : 'Good', base_cp: 1, max_expected_cp: Math.max(1, Math.round((p.rating - 6.0) * 12)) });
+      pool.push({ ...p, position: slot, tier: p.rating >= 8.0 ? 'Elite' : p.rating >= 7.5 ? 'Star' : 'Good' });
     }
   });
 
@@ -1414,45 +1345,248 @@ app.get('/api/auction/pool', (req, res) => {
 
 // 10. Match simulation
 app.post('/api/auction/simulate', (req, res) => {
-  const { userSquad, aiSquad } = req.body;
-  if (!userSquad?.length || !aiSquad?.length) return res.status(400).json({ error: 'Both squads required' });
+  const { userStarters, userSubs, aiStarters, aiSubs } = req.body;
+  if (!userStarters?.length || !aiStarters?.length) {
+    return res.status(400).json({ error: 'Starting lineups are required for both teams.' });
+  }
 
-  const avgRating = squad => squad.reduce((s,p) => s + (p.rating||6.5), 0) / squad.length;
-  const uPow = avgRating(userSquad), aiPow = avgRating(aiSquad);
+  const getEffectiveRating = (p) => {
+    const nat = p.position; // "Goalkeeper", "Defender", "Midfielder", "Forward"
+    const slot = p.slottedPosition; // e.g. "GK", "LB", "LCM", "ST", "SUB"
+    if (!slot) return p.rating || 6.5;
+    if (slot === 'SUB') return (p.rating || 6.5) * 0.8;
+    
+    const isGK = slot === 'GK';
+    const isDEF = ['LB', 'LCB', 'RCB', 'RB', 'CB', 'LWB', 'RWB'].includes(slot);
+    const isMID = ['LM', 'RM', 'LCM', 'RCM', 'CM', 'CDM', 'CAM', 'LDM', 'RDM', 'LAM', 'RAM'].includes(slot);
+    const isFWD = ['LW', 'RW', 'ST', 'LS', 'RS'].includes(slot);
+    
+    let match = false;
+    if (isGK && nat === 'Goalkeeper') match = true;
+    if (isDEF && nat === 'Defender') match = true;
+    if (isMID && nat === 'Midfielder') match = true;
+    if (isFWD && nat === 'Forward') match = true;
+    
+    return match ? (p.rating || 6.5) : (p.rating || 6.5) * 0.6; // 40% out-of-position penalty
+  };
+
+  const avgRating = starters => starters.reduce((s, p) => s + getEffectiveRating(p), 0) / starters.length;
+  const uPow = avgRating(userStarters);
+  const aiPow = avgRating(aiStarters);
+
+  // Win probability
   const uWinProb = uPow / (uPow + aiPow);
 
-  const forwards = s => s.filter(p => p.position === 'Forward' || p.position === 'Midfielder');
-  const gk = s => s.find(p => p.position === 'Goalkeeper') || s[0];
+  // Helper to choose player by position weight
+  const pickPlayer = (squad, role) => {
+    // weight positions: GK, Defender, Midfielder, Forward
+    const weights = { Goalkeeper: 5, Defender: 15, Midfielder: 30, Forward: 50 };
+    if (role === 'scorer') {
+      weights.Forward = 60; weights.Midfielder = 30; weights.Defender = 8; weights.Goalkeeper = 2;
+    } else if (role === 'assister') {
+      weights.Forward = 30; weights.Midfielder = 50; weights.Defender = 18; weights.Goalkeeper = 2;
+    } else if (role === 'card') {
+      weights.Defender = 45; weights.Midfielder = 40; weights.Forward = 13; weights.Goalkeeper = 2;
+    }
+    
+    // Weighted selection
+    const weightedSquad = squad.map(p => ({
+      player: p,
+      weight: weights[p.position] || 10
+    }));
+    const totalWeight = weightedSquad.reduce((s, item) => s + item.weight, 0);
+    let r = Math.random() * totalWeight;
+    for (const item of weightedSquad) {
+      r -= item.weight;
+      if (r <= 0) return item.player;
+    }
+    return squad[0];
+  };
+
+  const userGK = userStarters.find(p => p.position === 'Goalkeeper') || userStarters[0];
+  const aiGK = aiStarters.find(p => p.position === 'Goalkeeper') || aiStarters[0];
 
   let uGoals = 0, aGoals = 0;
   const events = [];
+  
+  // Stats tracking
+  const finalPos = Math.round(50 + (uPow - aiPow) * 6 + (Math.random() - 0.5) * 8);
+  const uPos = Math.min(72, Math.max(28, finalPos));
+  const aiPos = 100 - uPos;
+
+  let uShots = 0, aShots = 0;
+  let uSot = 0, aSot = 0;
+  let uFouls = 0, aFouls = 0;
+  let uYellows = 0, aYellows = 0;
+  let aYellows_cnt = 0, uYellows_cnt = 0;
 
   for (let min = 1; min <= 90; min++) {
-    if (Math.random() > 0.10) continue;
+    if (Math.random() > 0.15) continue; // Roughly 10-15 key events in match
+    
     const isUser = Math.random() < uWinProb;
-    const rand = Math.random();
-    if (rand < 0.40) {
+    const actionRand = Math.random();
+
+    if (actionRand < 0.28) {
+      // Goal
       if (isUser) {
-        uGoals++;
-        const scorer = forwards(userSquad)[Math.floor(Math.random()*forwards(userSquad).length)] || userSquad[0];
-        events.push({ min, type: 'GOAL', team: 'user', desc: `⚽ GOAL! ${scorer.name} fires it in!`, score: `${uGoals}-${aGoals}` });
+        uGoals++; uShots++; uSot++;
+        const scorer = pickPlayer(userStarters, 'scorer');
+        let assister = pickPlayer(userStarters, 'assister');
+        if (assister.name === scorer.name) {
+          assister = userStarters.find(p => p.name !== scorer.name) || assister;
+        }
+        
+        const goalDescs = [
+          `⚽ GOAL! ${scorer.name} fires a clinical shot past ${aiGK.name}! Assisted by ${assister.name}.`,
+          `⚽ GOAL! A superb cross by ${assister.name} finds ${scorer.name} who headers it in!`,
+          `⚽ GOAL! ${scorer.name} curls a beautiful free-kick over the wall and into the top corner!`
+        ];
+        events.push({
+          min, type: 'GOAL', team: 'user',
+          desc: goalDescs[Math.floor(Math.random() * goalDescs.length)],
+          score: `${uGoals}-${aGoals}`,
+          stats: { uShots, aShots, uSot, aSot, uFouls, aFouls, uYellows, aYellows }
+        });
       } else {
-        aGoals++;
-        const scorer = forwards(aiSquad)[Math.floor(Math.random()*forwards(aiSquad).length)] || aiSquad[0];
-        events.push({ min, type: 'GOAL', team: 'ai', desc: `⚽ GOAL! ${scorer.name} scores for AI!`, score: `${uGoals}-${aGoals}` });
+        aGoals++; aShots++; aSot++;
+        const scorer = pickPlayer(aiStarters, 'scorer');
+        let assister = pickPlayer(aiStarters, 'assister');
+        if (assister.name === scorer.name) {
+          assister = aiStarters.find(p => p.name !== scorer.name) || assister;
+        }
+
+        const goalDescs = [
+          `⚽ GOAL! ${scorer.name} beats the defender and slots it past ${userGK.name}! Assisted by ${assister.name}.`,
+          `⚽ GOAL! ${scorer.name} converts from close range after a rebound! Assisted by ${assister.name}.`,
+          `⚽ GOAL! ${scorer.name} scores a brilliant solo effort on a fast counter-attack!`
+        ];
+        events.push({
+          min, type: 'GOAL', team: 'ai',
+          desc: goalDescs[Math.floor(Math.random() * goalDescs.length)],
+          score: `${uGoals}-${aGoals}`,
+          stats: { uShots, aShots, uSot, aSot, uFouls, aFouls, uYellows, aYellows }
+        });
       }
-    } else if (rand < 0.70) {
-      const g = isUser ? gk(aiSquad) : gk(userSquad);
-      events.push({ min, type: 'SAVE', team: isUser ? 'ai' : 'user', desc: `🧤 ${g.name} saves brilliantly!`, score: `${uGoals}-${aGoals}` });
+    } else if (actionRand < 0.60) {
+      // Save
+      if (isUser) {
+        uShots++; uSot++;
+        const attacker = pickPlayer(userStarters, 'scorer');
+        const saveDescs = [
+          `🧤 Great save! ${aiGK.name} tips ${attacker.name}'s long-range volley over the bar!`,
+          `🧤 Saved! ${aiGK.name} blocks a low shot from ${attacker.name} inside the box.`
+        ];
+        events.push({
+          min, type: 'SAVE', team: 'ai',
+          desc: saveDescs[Math.floor(Math.random() * saveDescs.length)],
+          score: `${uGoals}-${aGoals}`,
+          stats: { uShots, aShots, uSot, aSot, uFouls, aFouls, uYellows, aYellows }
+        });
+      } else {
+        aShots++; aSot++;
+        const attacker = pickPlayer(aiStarters, 'scorer');
+        const saveDescs = [
+          `🧤 Superb save! ${userGK.name} stretches to deny a header from ${attacker.name}!`,
+          `🧤 Saved! ${userGK.name} comfortably catches ${attacker.name}'s curl shot.`
+        ];
+        events.push({
+          min, type: 'SAVE', team: 'user',
+          desc: saveDescs[Math.floor(Math.random() * saveDescs.length)],
+          score: `${uGoals}-${aGoals}`,
+          stats: { uShots, aShots, uSot, aSot, uFouls, aFouls, uYellows, aYellows }
+        });
+      }
+    } else if (actionRand < 0.82) {
+      // Near miss
+      if (isUser) {
+        uShots++;
+        const attacker = pickPlayer(userStarters, 'scorer');
+        const missDescs = [
+          `❌ Close! ${attacker.name} shoots from outside the box but it goes inches wide.`,
+          `❌ Chance! ${attacker.name} gets on the end of a cross but headers it over the crossbar.`
+        ];
+        events.push({
+          min, type: 'SAVE', team: 'user', // generic event
+          desc: missDescs[Math.floor(Math.random() * missDescs.length)],
+          score: `${uGoals}-${aGoals}`,
+          stats: { uShots, aShots, uSot, aSot, uFouls, aFouls, uYellows, aYellows }
+        });
+      } else {
+        aShots++;
+        const attacker = pickPlayer(aiStarters, 'scorer');
+        const missDescs = [
+          `❌ Narrow miss! ${attacker.name}'s shot curls just wide of the post.`,
+          `❌ Off target! ${attacker.name} volleys it high and wide.`
+        ];
+        events.push({
+          min, type: 'SAVE', team: 'ai',
+          desc: missDescs[Math.floor(Math.random() * missDescs.length)],
+          score: `${uGoals}-${aGoals}`,
+          stats: { uShots, aShots, uSot, aSot, uFouls, aFouls, uYellows, aYellows }
+        });
+      }
     } else {
-      const tm = isUser ? userSquad : aiSquad;
-      const player = tm[Math.floor(Math.random()*tm.length)];
-      events.push({ min, type: 'CARD', team: isUser ? 'user' : 'ai', desc: `🟨 ${player.name} booked!`, score: `${uGoals}-${aGoals}` });
+      // Foul / Booking
+      if (isUser) {
+        uFouls++;
+        const culprit = pickPlayer(userStarters, 'card');
+        const isYellow = Math.random() < 0.4;
+        if (isYellow) {
+          uYellows++;
+          events.push({
+            min, type: 'CARD', team: 'user',
+            desc: `🟨 Yellow Card: ${culprit.name} is booked for a late sliding tackle.`,
+            score: `${uGoals}-${aGoals}`,
+            stats: { uShots, aShots, uSot, aSot, uFouls, aFouls, uYellows, aYellows }
+          });
+        } else {
+          events.push({
+            min, type: 'SAVE', team: 'user',
+            desc: `⚠️ Foul: ${culprit.name} intercepts roughly. Free kick awarded.`,
+            score: `${uGoals}-${aGoals}`,
+            stats: { uShots, aShots, uSot, aSot, uFouls, aFouls, uYellows, aYellows }
+          });
+        }
+      } else {
+        aFouls++;
+        const culprit = pickPlayer(aiStarters, 'card');
+        const isYellow = Math.random() < 0.4;
+        if (isYellow) {
+          aYellows++;
+          events.push({
+            min, type: 'CARD', team: 'ai',
+            desc: `🟨 Yellow Card: ${culprit.name} receives a card after a rough foul.`,
+            score: `${uGoals}-${aGoals}`,
+            stats: { uShots, aShots, uSot, aSot, uFouls, aFouls, uYellows, aYellows }
+          });
+        } else {
+          events.push({
+            min, type: 'SAVE', team: 'ai',
+            desc: `⚠️ Foul: ${culprit.name} commits a foul in the midfield.`,
+            score: `${uGoals}-${aGoals}`,
+            stats: { uShots, aShots, uSot, aSot, uFouls, aFouls, uYellows, aYellows }
+          });
+        }
+      }
     }
   }
-  events.push({ min: 90, type: 'FT', team: 'both', desc: `🏁 Full Time! ${uGoals}-${aGoals}`, score: `${uGoals}-${aGoals}` });
 
-  res.json({ userGoals: uGoals, aiGoals: aGoals, userPower: uPow.toFixed(2), aiPower: aiPow.toFixed(2), events });
+  events.push({
+    min: 90, type: 'FT', team: 'both',
+    desc: `🏁 Full Time! The referee blows the whistle. Final Score: User Dream Team ${uGoals} - ${aGoals} AI Elite Manager.`,
+    score: `${uGoals}-${aGoals}`,
+    stats: { uShots, aShots, uSot, aSot, uFouls, aFouls, uYellows, aYellows }
+  });
+
+  res.json({
+    userGoals: uGoals,
+    aiGoals: aGoals,
+    userPower: uPow.toFixed(2),
+    aiPower: aiPow.toFixed(2),
+    userPos: uPos,
+    aiPos: aiPos,
+    events
+  });
 });
 
 // 11. Match Details Center (New Endpoint)

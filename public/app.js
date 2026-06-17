@@ -1247,319 +1247,712 @@ async function runCompare() {
   }
 }
 
-/* ══════════════════ TAB 5: AUCTION ══════════════════ */
-let _pool = [], _poolIdx = 0;
-let _userBudget = 120, _aiBudget = 120;
-let _userSquad = [], _aiSquad = [];
-let _curBid = 1, _curHolder = null; // starts at 1 CP
-let _curPlayer = null;
-let _auctionTimer = null;
-let _auctionSecondsLeft = 10;
+/* ══════════════════ TAB 5: DRAFT & SQUAD BUILDER ══════════════════ */
+let _pool = [];
+let _userDrafted = [];
+let _aiDrafted = [];
+let _userFormation = '4-3-3';
+let _aiFormation = '4-3-3';
+let _userStarters = {}; // key: slotId, value: player
+let _userSubs = [null, null, null, null]; // 4 subs
+let _draftTurn = 'user'; // 'user' or 'ai'
+let _draftSearchQuery = '';
+let _draftPosFilter = 'ALL';
+let _selectedCardIndex = null;
+let _simulatingMatchActive = false;
+
+const FORMATIONS = {
+  '4-4-2': [
+    { id: 'GK', label: 'GK', bottom: '5%', left: '50%', type: 'Goalkeeper' },
+    { id: 'LB', label: 'LB', bottom: '22%', left: '15%', type: 'Defender' },
+    { id: 'LCB', label: 'LCB', bottom: '20%', left: '38%', type: 'Defender' },
+    { id: 'RCB', label: 'RCB', bottom: '20%', left: '62%', type: 'Defender' },
+    { id: 'RB', label: 'RB', bottom: '22%', left: '85%', type: 'Defender' },
+    { id: 'LM', label: 'LM', bottom: '50%', left: '15%', type: 'Midfielder' },
+    { id: 'LCM', label: 'LCM', bottom: '48%', left: '38%', type: 'Midfielder' },
+    { id: 'RCM', label: 'RCM', bottom: '48%', left: '62%', type: 'Midfielder' },
+    { id: 'RM', label: 'RM', bottom: '50%', left: '85%', type: 'Midfielder' },
+    { id: 'LS', label: 'LS', bottom: '78%', left: '35%', type: 'Forward' },
+    { id: 'RS', label: 'RS', bottom: '78%', left: '65%', type: 'Forward' }
+  ],
+  '4-3-3': [
+    { id: 'GK', label: 'GK', bottom: '5%', left: '50%', type: 'Goalkeeper' },
+    { id: 'LB', label: 'LB', bottom: '22%', left: '15%', type: 'Defender' },
+    { id: 'LCB', label: 'LCB', bottom: '20%', left: '38%', type: 'Defender' },
+    { id: 'RCB', label: 'RCB', bottom: '20%', left: '62%', type: 'Defender' },
+    { id: 'RB', label: 'RB', bottom: '22%', left: '85%', type: 'Defender' },
+    { id: 'LCM', label: 'LCM', bottom: '48%', left: '25%', type: 'Midfielder' },
+    { id: 'CM', label: 'CM', bottom: '45%', left: '50%', type: 'Midfielder' },
+    { id: 'RCM', label: 'RCM', bottom: '48%', left: '75%', type: 'Midfielder' },
+    { id: 'LW', label: 'LW', bottom: '78%', left: '18%', type: 'Forward' },
+    { id: 'ST', label: 'ST', bottom: '82%', left: '50%', type: 'Forward' },
+    { id: 'RW', label: 'RW', bottom: '78%', left: '82%', type: 'Forward' }
+  ],
+  '3-5-2': [
+    { id: 'GK', label: 'GK', bottom: '5%', left: '50%', type: 'Goalkeeper' },
+    { id: 'LCB', label: 'LCB', bottom: '20%', left: '25%', type: 'Defender' },
+    { id: 'CB', label: 'CB', bottom: '18%', left: '50%', type: 'Defender' },
+    { id: 'RCB', label: 'RCB', bottom: '20%', left: '75%', type: 'Defender' },
+    { id: 'LWB', label: 'LWB', bottom: '48%', left: '12%', type: 'Midfielder' },
+    { id: 'RWB', label: 'RWB', bottom: '48%', left: '88%', type: 'Midfielder' },
+    { id: 'LCM', label: 'LCM', bottom: '44%', left: '32%', type: 'Midfielder' },
+    { id: 'CM', label: 'CM', bottom: '46%', left: '50%', type: 'Midfielder' },
+    { id: 'RCM', label: 'RCM', bottom: '44%', left: '68%', type: 'Midfielder' },
+    { id: 'LS', label: 'LS', bottom: '78%', left: '35%', type: 'Forward' },
+    { id: 'RS', label: 'RS', bottom: '78%', left: '65%', type: 'Forward' }
+  ],
+  '5-3-2': [
+    { id: 'GK', label: 'GK', bottom: '5%', left: '50%', type: 'Goalkeeper' },
+    { id: 'LWB', label: 'LWB', bottom: '24%', left: '12%', type: 'Defender' },
+    { id: 'LCB', label: 'LCB', bottom: '20%', left: '31%', type: 'Defender' },
+    { id: 'CB', label: 'CB', bottom: '18%', left: '50%', type: 'Defender' },
+    { id: 'RCB', label: 'RCB', bottom: '20%', left: '69%', type: 'Defender' },
+    { id: 'RWB', label: 'RWB', bottom: '24%', left: '88%', type: 'Defender' },
+    { id: 'LCM', label: 'LCM', bottom: '48%', left: '30%', type: 'Midfielder' },
+    { id: 'CM', label: 'CM', bottom: '45%', left: '50%', type: 'Midfielder' },
+    { id: 'RCM', label: 'RCM', bottom: '48%', left: '70%', type: 'Midfielder' },
+    { id: 'LS', label: 'LS', bottom: '78%', left: '35%', type: 'Forward' },
+    { id: 'RS', label: 'RS', bottom: '78%', left: '65%', type: 'Forward' }
+  ],
+  '4-2-3-1': [
+    { id: 'GK', label: 'GK', bottom: '5%', left: '50%', type: 'Goalkeeper' },
+    { id: 'LB', label: 'LB', bottom: '22%', left: '15%', type: 'Defender' },
+    { id: 'LCB', label: 'LCB', bottom: '20%', left: '38%', type: 'Defender' },
+    { id: 'RCB', label: 'RCB', bottom: '20%', left: '62%', type: 'Defender' },
+    { id: 'RB', label: 'RB', bottom: '22%', left: '85%', type: 'Defender' },
+    { id: 'LDM', label: 'LDM', bottom: '42%', left: '35%', type: 'Midfielder' },
+    { id: 'RDM', label: 'RDM', bottom: '42%', left: '65%', type: 'Midfielder' },
+    { id: 'LAM', label: 'LAM', bottom: '65%', left: '20%', type: 'Midfielder' },
+    { id: 'CAM', label: 'CAM', bottom: '60%', left: '50%', type: 'Midfielder' },
+    { id: 'RAM', label: 'RAM', bottom: '65%', left: '80%', type: 'Midfielder' },
+    { id: 'ST', label: 'ST', bottom: '82%', left: '50%', type: 'Forward' }
+  ]
+};
 
 function initAuction() {
-  document.getElementById('start-auction-btn').addEventListener('click', startAuction);
-  document.getElementById('btn-raise').addEventListener('click', userRaise);
-  document.getElementById('btn-pass').addEventListener('click', userPass);
-  document.getElementById('btn-skip').addEventListener('click', skipPlayer);
-  document.getElementById('simulate-btn').addEventListener('click', simulateMatch);
+  document.getElementById('start-auction-btn').addEventListener('click', startDraftAuction);
+  document.getElementById('draft-search').addEventListener('input', (e) => {
+    _draftSearchQuery = e.target.value.toLowerCase();
+    renderDraftPool();
+  });
+  document.getElementById('draft-position-filter').addEventListener('change', (e) => {
+    _draftPosFilter = e.target.value;
+    renderDraftPool();
+  });
+  document.getElementById('simulate-btn').addEventListener('click', simulateDraftMatch);
   document.getElementById('close-modal').addEventListener('click', () => {
     document.getElementById('sim-modal').style.display = 'none';
   });
 }
 
-async function startAuction() {
+async function startDraftAuction() {
+  _userFormation = document.getElementById('user-formation-select').value;
+  const forms = ['4-4-2', '4-3-3', '3-5-2', '5-3-2', '4-2-3-1'];
+  _aiFormation = forms[Math.floor(Math.random() * forms.length)];
+
   const res = await $get('/api/auction/pool');
   _pool = res.players || [];
-  _poolIdx = 0;
-  _userBudget = 120; _aiBudget = 120;
-  _userSquad = []; _aiSquad = [];
+  
+  _userDrafted = [];
+  _aiDrafted = [];
+  _userStarters = {};
+  _userSubs = [null, null, null, null];
+  _draftTurn = 'user';
+  _draftSearchQuery = '';
+  _draftPosFilter = 'ALL';
+  _selectedCardIndex = null;
+
+  document.getElementById('draft-search').value = '';
+  document.getElementById('draft-position-filter').value = 'ALL';
 
   document.getElementById('auction-setup').style.display = 'none';
   document.getElementById('auction-board').style.display = 'grid';
+  document.getElementById('squad-builder-board').style.display = 'none';
   document.getElementById('sim-ready').style.display = 'none';
 
-  // Clear AI roster list visual
-  document.getElementById('ai-roster').innerHTML = '';
-
-  updateBudgetDisplays();
-  updatePitchView();
-  nextPlayer();
+  updateDraftRosterLists();
+  renderDraftPool();
+  updateDraftTurnIndicator();
 }
 
-function nextPlayer() {
-  const totalNeeded = 11;
-  const userDone = _userSquad.length >= totalNeeded;
-  const aiDone = _aiSquad.length >= totalNeeded;
-
-  if (userDone && aiDone) {
-    endAuction(); return;
-  }
-
-  if (_poolIdx >= _pool.length) {
-    endAuction(); return;
-  }
-
-  _curPlayer = _pool[_poolIdx++];
-  _curBid = 1; // Always start at 1 CP
-  _curHolder = null;
-
-  // Display player card
-  const groupPos = ['GK'].includes(_curPlayer.position) ? 'GK' : ['LB', 'LCB', 'RCB', 'RB'].includes(_curPlayer.position) ? 'DEF' : ['CDM', 'CM', 'CAM'].includes(_curPlayer.position) ? 'MID' : 'FWD';
-  document.getElementById('cur-pos').textContent = _curPlayer.position;
-  document.getElementById('cur-pos').className = 'cur-pos pos-badge pos-' + groupPos;
-  document.getElementById('cur-tier').textContent = _curPlayer.tier || '';
-  const flagUrl = getFlagUrl(_curPlayer.team);
-  const flagImg = document.getElementById('cur-flag');
-  if (flagImg) {
-    if (flagUrl) {
-      flagImg.src = flagUrl;
-      flagImg.style.display = 'inline-block';
-    } else {
-      flagImg.style.display = 'none';
-    }
-  }
-  const nameText = document.getElementById('cur-name-text');
-  if (nameText) nameText.textContent = _curPlayer.name;
-  document.getElementById('cur-team').textContent = _curPlayer.team;
-  document.getElementById('cur-rating').textContent = _curPlayer.rating;
-  document.getElementById('cur-goals').textContent = _curPlayer.goals;
-  document.getElementById('cur-assists').textContent = _curPlayer.assists;
-  document.getElementById('cur-age').textContent = _curPlayer.age;
-  updateBidDisplay();
-  clearBidLog();
-  logBid(`Player drawn: ${_curPlayer.name} (${_curPlayer.team}) · Start: 1 CP`, 'neutral');
-
-  // Check if position already filled for user
-  const userHasPos = _userSquad.some(p => p.position === _curPlayer.position);
-  const raiseBtn = document.getElementById('btn-raise');
-  if (userHasPos) {
-    raiseBtn.disabled = true;
-    raiseBtn.textContent = `Position ${_curPlayer.position} Filled`;
-    raiseBtn.style.opacity = 0.5;
-  } else {
-    raiseBtn.disabled = false;
-    raiseBtn.textContent = "▲ Raise Bid (+1 CP)";
-    raiseBtn.style.opacity = 1;
-  }
-
-  // Enable pass button
-  document.getElementById('btn-pass').disabled = false;
-
-  resetAuctionTimer();
-
-  // AI auto-bids after short delay if it wants this player
-  setTimeout(aiDecide, 350);
-}
-
-function aiDecide() {
-  if (_aiSquad.length >= 11) return;
-  const aiHasPos = _aiSquad.some(p => p.position === _curPlayer.position);
-  const rating = _curPlayer.rating || 7;
-  const isDesperate = (_pool.length - _poolIdx) < (11 - _aiSquad.length) * 3;
-  const wantsPlayer = !aiHasPos && _aiBudget > _curBid && (rating >= 7.6 || isDesperate);
-
-  if (wantsPlayer) {
-    // AI bids heavily on top players, passes on mediocre ones
-    let maxAIBid = Math.min(_aiBudget - (11 - _aiSquad.length - 1), Math.round((rating - 7.0) * 15 + 5));
-    if (rating >= 8.2) maxAIBid = Math.min(_aiBudget - (11 - _aiSquad.length - 1), 60); // Goes all in for superstars
-    if (rating < 7.6 && !isDesperate) maxAIBid = 0;
-    if (_curHolder !== 'ai' && _curBid <= maxAIBid) {
-      _curBid += 1;
-      _curHolder = 'ai';
-      updateBidDisplay();
-      logBid(`AI bids ${_curBid} CP`, 'ai');
-      resetAuctionTimer();
-    }
-  }
-}
-
-function userRaise() {
-  if (_userBudget <= _curBid) {
-    logBid('Not enough budget!', 'neutral'); return;
-  }
-  if (_userSquad.length >= 11) {
-    logBid('Your squad is full!', 'neutral'); return;
-  }
-  _curBid += 1;
-  _curHolder = 'user';
-  updateBidDisplay();
-  logBid(`You bid ${_curBid} CP`, 'user');
-  resetAuctionTimer();
-
-  // AI counter after delay
-  setTimeout(() => {
-    if (_aiSquad.length >= 11) return;
-    const aiHasPos = _aiSquad.some(p => p.position === _curPlayer.position);
-    const rating = _curPlayer.rating || 7;
-    const isDesperate = (_pool.length - _poolIdx) < (11 - _aiSquad.length) * 3;
-    let maxAIBid = Math.min(_aiBudget - (11 - _aiSquad.length - 1), Math.round((rating - 7.0) * 15 + 5));
-    if (rating >= 8.2) maxAIBid = Math.min(_aiBudget - (11 - _aiSquad.length - 1), 60);
-    if (rating < 7.6 && !isDesperate) maxAIBid = 0;
-
-    if (!aiHasPos && _curBid < maxAIBid && _aiBudget > _curBid && (rating >= 7.6 || isDesperate)) {
-      _curBid += 1;
-      _curHolder = 'ai';
-      updateBidDisplay();
-      logBid(`AI raises to ${_curBid} CP`, 'ai');
-      resetAuctionTimer();
-    }
-  }, 300);
-}
-
-function userPass() {
-  if (_auctionTimer) clearInterval(_auctionTimer);
-  // User passes → if AI is holder, AI wins; if no holder, draw next
-  if (_curHolder === 'user') {
-    // User was winning, now passes — AI gets at current price
-    _curHolder = 'ai';
-    awardPlayer('ai');
-  } else if (_curHolder === 'ai') {
-    // AI wins current bid
-    awardPlayer('ai');
-  } else {
-    // No one bid, draw next
-    nextPlayer();
-  }
-}
-
-function skipPlayer() {
-  if (_auctionTimer) clearInterval(_auctionTimer);
-  if (_curHolder === 'ai') {
-    logBid(`Skipped: awarding ${_curPlayer.name} to AI at ${_curBid} CP`, 'ai');
-    awardPlayer('ai');
-  } else {
-    logBid('Player skipped — drawing next...', 'neutral');
-    nextPlayer();
-  }
-}
-
-function awardPlayer(winner) {
-  if (_auctionTimer) clearInterval(_auctionTimer);
-  const price = _curBid;
-  const p = { ..._curPlayer, paid_cp: price };
-
-  if (winner === 'user') {
-    _userBudget -= price;
-    _userSquad.push(p);
-    logBid(`✅ You win ${_curPlayer.name} for ${price} CP!`, 'user');
-    updatePitchView();
-  } else {
-    _aiBudget -= price;
-    _aiSquad.push(p);
-    logBid(`🤖 AI wins ${_curPlayer.name} for ${price} CP`, 'ai');
-    addToRoster('ai-roster', p);
-  }
-
-  updateBudgetDisplays();
-
-  const userDone = _userSquad.length >= 11;
-  const aiDone   = _aiSquad.length >= 11;
-  if (userDone && aiDone) { endAuction(); return; }
-
-  setTimeout(nextPlayer, 1200);
-}
-
-function addToRoster(id, p) {
-  const groupPos = ['GK'].includes(p.position) ? 'GK' : ['LB', 'LCB', 'RCB', 'RB'].includes(p.position) ? 'DEF' : ['CDM', 'CM', 'CAM'].includes(p.position) ? 'MID' : 'FWD';
-  const flag = getFlagUrl(p.team);
-  const div = document.createElement('div');
-  div.className = 'roster-item';
-  div.innerHTML = `
-    <span class="ri-pos pos-badge pos-${groupPos}">${p.position}</span>
-    ${flag ? `<img src="${flag}" style="width:14px; height:10px; border-radius:1px; object-fit:cover; margin-right:6px; vertical-align:middle;">` : ''}
-    <span class="ri-name">${p.name}</span>
-    <span class="ri-cp">${p.paid_cp}CP</span>`;
-  document.getElementById(id).appendChild(div);
-}
-
-function updateBidDisplay() {
-  document.getElementById('cur-bid').textContent = _curBid;
-  document.getElementById('cur-holder').textContent = _curHolder === 'user' ? 'You' : _curHolder === 'ai' ? 'AI' : '—';
-}
-
-function updateBudgetDisplays() {
-  document.getElementById('user-budget').textContent = _userBudget;
-  document.getElementById('ai-budget').textContent = _aiBudget;
-  document.getElementById('user-bar').style.width = (_userBudget / 120 * 100) + '%';
-  document.getElementById('ai-bar').style.width = (_aiBudget / 120 * 100) + '%';
-}
-
-function logBid(msg, type) {
-  const log = document.getElementById('bid-log');
-  const div = document.createElement('div');
-  div.className = 'bid-entry ' + (type || '');
-  div.textContent = msg;
-  log.appendChild(div);
-  log.scrollTop = log.scrollHeight;
-}
-
-function clearBidLog() {
-  document.getElementById('bid-log').innerHTML = '';
-}
-
-function getNeededPositions(squad) {
-  const counts = { Goalkeeper: 0, Defender: 0, Midfielder: 0, Forward: 0 };
-  squad.forEach(p => { if (counts[p.position] !== undefined) counts[p.position]++; });
-  const needed = [];
-  if (counts.Goalkeeper < 2) needed.push('Goalkeeper');
-  if (counts.Defender < 5) needed.push('Defender');
-  if (counts.Midfielder < 5) needed.push('Midfielder');
-  if (counts.Forward < 3) needed.push('Forward');
-  return needed;
-}
-
-function endAuction() {
-  if (_auctionTimer) clearInterval(_auctionTimer);
-  logBid('🏁 Draft complete!', 'neutral');
-  document.getElementById('btn-raise').disabled = true;
-  document.getElementById('btn-pass').disabled = true;
-  if (_userSquad.length >= 11 && _aiSquad.length >= 11) {
-    document.getElementById('sim-ready').style.display = 'block';
-  }
-}
-
-async function simulateMatch() {
-  const res = await $post('/api/auction/simulate', {
-    userSquad: _userSquad.slice(0,11),
-    aiSquad: _aiSquad.slice(0,11)
+function updateDraftRosterLists() {
+  document.getElementById('user-draft-count').textContent = _userDrafted.length;
+  const userList = document.getElementById('user-draft-list');
+  userList.innerHTML = '';
+  _userDrafted.forEach((p) => {
+    const groupPos = ['GK'].includes(p.position) ? 'GK' : ['LB', 'LCB', 'RCB', 'RB'].includes(p.position) ? 'DEF' : ['CDM', 'CM', 'CAM'].includes(p.position) ? 'MID' : 'FWD';
+    const flag = getFlagUrl(p.team);
+    const div = document.createElement('div');
+    div.className = 'roster-item';
+    div.style.background = 'rgba(255,255,255,0.02)';
+    div.style.border = '1px solid var(--border)';
+    div.style.padding = '8px 12px';
+    div.style.borderRadius = '6px';
+    div.style.display = 'flex';
+    div.style.alignItems = 'center';
+    div.style.gap = '8px';
+    div.innerHTML = `
+      <span class="pos-badge pos-${groupPos}" style="font-size:9px; padding:2px 4px; border-radius:4px;">${p.position}</span>
+      ${flag ? `<img src="${flag}" style="width:14px; height:10px; object-fit:cover; border-radius:1px;">` : ''}
+      <span style="font-size:12px; font-weight:700; color:#fff; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${p.name}</span>
+      <span style="font-size:11px; font-weight:800; color:var(--accent-2);">${p.rating}</span>
+    `;
+    userList.appendChild(div);
   });
-  if (res.error) { alert(res.error); return; }
 
-  const modal = document.getElementById('sim-modal');
+  document.getElementById('ai-draft-count').textContent = _aiDrafted.length;
+  const aiList = document.getElementById('ai-draft-list');
+  aiList.innerHTML = '';
+  _aiDrafted.forEach((p) => {
+    const groupPos = ['GK'].includes(p.position) ? 'GK' : ['LB', 'LCB', 'RCB', 'RB'].includes(p.position) ? 'DEF' : ['CDM', 'CM', 'CAM'].includes(p.position) ? 'MID' : 'FWD';
+    const flag = getFlagUrl(p.team);
+    const div = document.createElement('div');
+    div.className = 'roster-item';
+    div.style.background = 'rgba(255,255,255,0.02)';
+    div.style.border = '1px solid var(--border)';
+    div.style.padding = '8px 12px';
+    div.style.borderRadius = '6px';
+    div.style.display = 'flex';
+    div.style.alignItems = 'center';
+    div.style.gap = '8px';
+    div.innerHTML = `
+      <span class="pos-badge pos-${groupPos}" style="font-size:9px; padding:2px 4px; border-radius:4px;">${p.position}</span>
+      ${flag ? `<img src="${flag}" style="width:14px; height:10px; object-fit:cover; border-radius:1px;">` : ''}
+      <span style="font-size:12px; font-weight:700; color:#fff; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${p.name}</span>
+      <span style="font-size:11px; font-weight:800; color:var(--accent);">${p.rating}</span>
+    `;
+    aiList.appendChild(div);
+  });
+}
+
+function renderDraftPool() {
+  const grid = document.getElementById('draft-pool-grid');
+  grid.innerHTML = '';
+
+  const filtered = _pool.filter(p => {
+    const isDrafted = _userDrafted.some(x => x.name === p.name) || _aiDrafted.some(x => x.name === p.name);
+    if (isDrafted) return false;
+
+    if (_draftSearchQuery && !p.name.toLowerCase().includes(_draftSearchQuery)) return false;
+
+    if (_draftPosFilter !== 'ALL') {
+      const isGK = p.position === 'GK';
+      const isDEF = ['LB', 'LCB', 'RCB', 'RB', 'CB', 'LWB', 'RWB'].includes(p.position);
+      const isMID = ['CDM', 'CM', 'CAM'].includes(p.position);
+      const isFWD = ['LW', 'RW', 'ST'].includes(p.position);
+
+      if (_draftPosFilter === 'GK' && !isGK) return false;
+      if (_draftPosFilter === 'DEF' && !isDEF) return false;
+      if (_draftPosFilter === 'MID' && !isMID) return false;
+      if (_draftPosFilter === 'FWD' && !isFWD) return false;
+    }
+
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:20px; color:var(--text-2);">No available players found</div>';
+    return;
+  }
+
+  filtered.sort((a, b) => b.rating - a.rating);
+
+  filtered.forEach(p => {
+    const groupPos = ['GK'].includes(p.position) ? 'GK' : ['LB', 'LCB', 'RCB', 'RB'].includes(p.position) ? 'DEF' : ['CDM', 'CM', 'CAM'].includes(p.position) ? 'MID' : 'FWD';
+    const flag = getFlagUrl(p.team);
+    
+    const card = document.createElement('div');
+    card.className = 'panel player-card-draft';
+    card.style.background = 'rgba(255,255,255,0.01)';
+    card.style.border = '1px solid var(--border)';
+    card.style.borderRadius = '8px';
+    card.style.padding = '10px';
+    card.style.display = 'flex';
+    card.style.flexDirection = 'column';
+    card.style.gap = '6px';
+    card.style.position = 'relative';
+
+    card.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span class="pos-badge pos-${groupPos}" style="font-size:9px; padding:2px 6px; border-radius:4px;">${p.position}</span>
+        <span style="font-size:12px; font-weight:800; color:var(--gold);">${p.rating} ⭐</span>
+      </div>
+      <div style="font-size:13px; font-weight:800; color:#fff; display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+        ${flag ? `<img src="${flag}" style="width:16px; height:11px; object-fit:cover; border-radius:1px;">` : ''}
+        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${p.name}</span>
+      </div>
+      <div style="font-size:11px; color:var(--text-2); display:flex; justify-content:space-between;">
+        <span>Goals: ${p.goals || 0}</span>
+        <span>Assists: ${p.assists || 0}</span>
+      </div>
+      <button class="btn-primary" style="padding:6px; font-size:11px; margin-top:4px;" ${_draftTurn !== 'user' ? 'disabled' : ''}>Draft Player</button>
+    `;
+
+    const btn = card.querySelector('button');
+    btn.addEventListener('click', () => {
+      if (_draftTurn !== 'user') return;
+      draftPlayer('user', p);
+    });
+
+    grid.appendChild(card);
+  });
+}
+
+function draftPlayer(who, player) {
+  if (who === 'user') {
+    _userDrafted.push(player);
+    updateDraftRosterLists();
+    
+    if (_userDrafted.length >= 15 && _aiDrafted.length >= 15) {
+      endDraft();
+      return;
+    }
+
+    _draftTurn = 'ai';
+    updateDraftTurnIndicator();
+    renderDraftPool();
+    
+    setTimeout(aiDraftTurn, 1000);
+  } else {
+    _aiDrafted.push(player);
+    updateDraftRosterLists();
+
+    if (_userDrafted.length >= 15 && _aiDrafted.length >= 15) {
+      endDraft();
+      return;
+    }
+
+    _draftTurn = 'user';
+    updateDraftTurnIndicator();
+    renderDraftPool();
+  }
+}
+
+function aiDraftTurn() {
+  if (_aiDrafted.length >= 15) return;
+
+  const formationSlots = FORMATIONS[_aiFormation];
+  const neededGK = 1;
+  const neededDEF = formationSlots.filter(s => s.type === 'Defender').length;
+  const neededMID = formationSlots.filter(s => s.type === 'Midfielder').length;
+  const neededFWD = formationSlots.filter(s => s.type === 'Forward').length;
+
+  const currentGK = _aiDrafted.filter(p => p.position === 'GK').length;
+  const currentDEF = _aiDrafted.filter(p => ['LB', 'LCB', 'RCB', 'RB', 'CB', 'LWB', 'RWB'].includes(p.position)).length;
+  const currentMID = _aiDrafted.filter(p => ['CDM', 'CM', 'CAM'].includes(p.position)).length;
+  const currentFWD = _aiDrafted.filter(p => ['LW', 'RW', 'ST'].includes(p.position)).length;
+
+  let chosenType = null;
+  if (currentGK < neededGK) chosenType = 'Goalkeeper';
+  else if (currentDEF < neededDEF) chosenType = 'Defender';
+  else if (currentMID < neededMID) chosenType = 'Midfielder';
+  else if (currentFWD < neededFWD) chosenType = 'Forward';
+
+  const available = _pool.filter(p => {
+    return !_userDrafted.some(x => x.name === p.name) && !_aiDrafted.some(x => x.name === p.name);
+  });
+
+  if (available.length === 0) return;
+
+  let candidates = [];
+  if (chosenType) {
+    candidates = available.filter(p => {
+      if (chosenType === 'Goalkeeper') return p.position === 'GK';
+      if (chosenType === 'Defender') return ['LB', 'LCB', 'RCB', 'RB', 'CB', 'LWB', 'RWB'].includes(p.position);
+      if (chosenType === 'Midfielder') return ['CDM', 'CM', 'CAM'].includes(p.position);
+      if (chosenType === 'Forward') return ['LW', 'RW', 'ST'].includes(p.position);
+      return false;
+    });
+  }
+
+  if (candidates.length === 0) {
+    candidates = [...available];
+  }
+
+  candidates.sort((a, b) => b.rating - a.rating);
+  const picked = candidates[0];
+  
+  draftPlayer('ai', picked);
+}
+
+function updateDraftTurnIndicator() {
+  const indicator = document.getElementById('draft-turn-indicator');
+  if (_draftTurn === 'user') {
+    indicator.textContent = 'YOUR TURN: Pick a player from the pool';
+    indicator.style.background = 'rgba(34, 211, 238, 0.08)';
+    indicator.style.borderColor = 'rgba(34, 211, 238, 0.2)';
+    indicator.style.color = 'var(--accent-2)';
+  } else {
+    indicator.textContent = 'AI MANAGER IS THINKING...';
+    indicator.style.background = 'rgba(239, 68, 68, 0.08)';
+    indicator.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+    indicator.style.color = 'var(--red)';
+  }
+}
+
+function endDraft() {
+  document.getElementById('auction-board').style.display = 'none';
+  document.getElementById('squad-builder-board').style.display = 'grid';
+  document.getElementById('formation-label-text').textContent = _userFormation;
+  
+  _userStarters = {};
+  _userSubs = [null, null, null, null];
+
+  renderSquadBuilder();
+}
+
+function renderSquadBuilder() {
+  const dock = document.getElementById('draggable-players-dock');
+  dock.innerHTML = '';
+
+  const placedNames = new Set();
+  Object.values(_userStarters).forEach(p => { if (p) placedNames.add(p.name); });
+  _userSubs.forEach(p => { if (p) placedNames.add(p.name); });
+
+  const unplaced = _userDrafted.filter(p => !placedNames.has(p.name));
+
+  unplaced.forEach((p, idx) => {
+    const groupPos = ['GK'].includes(p.position) ? 'GK' : ['LB', 'LCB', 'RCB', 'RB'].includes(p.position) ? 'DEF' : ['CDM', 'CM', 'CAM'].includes(p.position) ? 'MID' : 'FWD';
+    const flag = getFlagUrl(p.team);
+    
+    const card = document.createElement('div');
+    card.className = 'panel player-builder-card';
+    if (_selectedCardIndex === idx) card.className += ' selected-card';
+    
+    card.setAttribute('draggable', 'true');
+    card.dataset.playerIndex = idx;
+    
+    card.style.background = 'rgba(255,255,255,0.02)';
+    card.style.border = _selectedCardIndex === idx ? '2px solid var(--accent-2)' : '1px solid var(--border)';
+    card.style.borderRadius = '6px';
+    card.style.padding = '8px';
+    card.style.width = 'calc(50% - 6px)';
+    card.style.cursor = 'grab';
+    card.style.display = 'flex';
+    card.style.flexDirection = 'column';
+    card.style.gap = '4px';
+
+    card.innerHTML = `
+      <div style="display:flex; justify-content:space-between; font-size:10px;">
+        <span class="pos-badge pos-${groupPos}">${p.position}</span>
+        <span style="color:var(--gold); font-weight:800;">${p.rating}</span>
+      </div>
+      <div style="font-size:11px; font-weight:800; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; align-items:center; gap:4px;">
+        ${flag ? `<img src="${flag}" style="width:12px; height:8px; object-fit:cover;">` : ''}
+        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${p.name.split(' ').pop()}</span>
+      </div>
+    `;
+
+    card.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', idx);
+      e.dataTransfer.effectAllowed = 'move';
+      card.style.opacity = '0.4';
+    });
+    card.addEventListener('dragend', () => {
+      card.style.opacity = '1';
+    });
+
+    card.addEventListener('click', () => {
+      if (_selectedCardIndex === idx) {
+        _selectedCardIndex = null;
+      } else {
+        _selectedCardIndex = idx;
+      }
+      renderSquadBuilder();
+    });
+
+    dock.appendChild(card);
+  });
+
+  if (unplaced.length === 0 && placedNames.size < 15) {
+    dock.innerHTML = '<div style="font-size:12px; color:var(--text-2); padding:10px;">All players placed!</div>';
+  } else if (unplaced.length === 0) {
+    dock.innerHTML = '<div style="font-size:12px; color:var(--green); font-weight:800; padding:10px;">Lineup complete! Click simulate below.</div>';
+  }
+
+  const pitch = document.getElementById('builder-pitch');
+  const oldSlots = pitch.querySelectorAll('.pitch-slot');
+  oldSlots.forEach(s => s.remove());
+
+  const slotsData = FORMATIONS[_userFormation] || FORMATIONS['4-3-3'];
+  slotsData.forEach(slot => {
+    const placedPlayer = _userStarters[slot.id];
+    
+    const div = document.createElement('div');
+    div.className = 'pitch-slot';
+    if (placedPlayer) div.className += ' filled';
+    div.style.bottom = slot.bottom;
+    div.style.left = slot.left;
+    div.dataset.slotId = slot.id;
+
+    if (placedPlayer) {
+      const groupPos = ['GK'].includes(placedPlayer.position) ? 'GK' : ['LB', 'LCB', 'RCB', 'RB'].includes(placedPlayer.position) ? 'DEF' : ['CDM', 'CM', 'CAM'].includes(placedPlayer.position) ? 'MID' : 'FWD';
+      const isMismatch = (slot.type === 'Goalkeeper' && placedPlayer.position !== 'GK') ||
+                         (slot.type === 'Defender' && !['LB', 'LCB', 'RCB', 'RB', 'CB', 'LWB', 'RWB'].includes(placedPlayer.position)) ||
+                         (slot.type === 'Midfielder' && !['CDM', 'CM', 'CAM'].includes(placedPlayer.position)) ||
+                         (slot.type === 'Forward' && !['LW', 'RW', 'ST'].includes(placedPlayer.position));
+      
+      div.innerHTML = `
+        <span class="slot-pos-label" style="color:${isMismatch ? 'var(--red)' : 'var(--text-2)'}">${slot.label}${isMismatch ? ' ⚠️' : ''}</span>
+        <span class="slot-player-name" style="font-size:8px; color:#fff;">${placedPlayer.name.split(' ').pop()}</span>
+        <span class="slot-player-cp" style="font-size:7px; color:var(--accent-2);">${placedPlayer.rating}</span>
+      `;
+    } else {
+      div.innerHTML = `
+        <span class="slot-pos-label">${slot.label}</span>
+        <span class="slot-player-name" style="color:rgba(255,255,255,0.2);">—</span>
+        <span class="slot-player-cp"></span>
+      `;
+    }
+
+    div.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      div.style.borderColor = 'var(--accent-2)';
+      div.style.background = 'rgba(34, 211, 238, 0.05)';
+    });
+    div.addEventListener('dragleave', () => {
+      div.style.borderColor = placedPlayer ? 'var(--accent-2)' : 'rgba(255,255,255,0.15)';
+      div.style.background = '';
+    });
+    div.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const playerIdx = parseInt(e.dataTransfer.getData('text/plain'));
+      placePlayerInStarter(playerIdx, slot.id);
+    });
+
+    div.addEventListener('click', () => {
+      if (_selectedCardIndex !== null) {
+        placePlayerInStarter(_selectedCardIndex, slot.id);
+      } else if (placedPlayer) {
+        delete _userStarters[slot.id];
+        _selectedCardIndex = null;
+        renderSquadBuilder();
+      }
+    });
+
+    pitch.appendChild(div);
+  });
+
+  const benchContainer = document.getElementById('bench-slots-container');
+  benchContainer.innerHTML = '';
+
+  for (let i = 0; i < 4; i++) {
+    const placedPlayer = _userSubs[i];
+    
+    const div = document.createElement('div');
+    div.className = 'pitch-slot';
+    if (placedPlayer) div.className += ' filled';
+    div.style.position = 'relative';
+    div.style.transform = 'none';
+    div.style.left = 'auto';
+    div.style.bottom = 'auto';
+    div.dataset.subIndex = i;
+
+    if (placedPlayer) {
+      div.innerHTML = `
+        <span class="slot-pos-label">SUB ${i+1}</span>
+        <span class="slot-player-name" style="font-size:8px; color:#fff;">${placedPlayer.name.split(' ').pop()}</span>
+        <span class="slot-player-cp" style="font-size:7px; color:var(--accent-2);">${placedPlayer.rating}</span>
+      `;
+    } else {
+      div.innerHTML = `
+        <span class="slot-pos-label">SUB ${i+1}</span>
+        <span class="slot-player-name" style="color:rgba(255,255,255,0.2);">—</span>
+        <span class="slot-player-cp"></span>
+      `;
+    }
+
+    div.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      div.style.borderColor = 'var(--accent-2)';
+      div.style.background = 'rgba(34, 211, 238, 0.05)';
+    });
+    div.addEventListener('dragleave', () => {
+      div.style.borderColor = placedPlayer ? 'var(--accent-2)' : 'rgba(255,255,255,0.15)';
+      div.style.background = '';
+    });
+    div.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const playerIdx = parseInt(e.dataTransfer.getData('text/plain'));
+      placePlayerInSub(playerIdx, i);
+    });
+
+    div.addEventListener('click', () => {
+      if (_selectedCardIndex !== null) {
+        placePlayerInSub(_selectedCardIndex, i);
+      } else if (placedPlayer) {
+        _userSubs[i] = null;
+        _selectedCardIndex = null;
+        renderSquadBuilder();
+      }
+    });
+
+    benchContainer.appendChild(div);
+  }
+
+  const filledStartersCount = Object.keys(_userStarters).length;
+  const filledSubsCount = _userSubs.filter(Boolean).length;
+
+  if (filledStartersCount === 11 && filledSubsCount === 4) {
+    document.getElementById('sim-ready').style.display = 'block';
+  } else {
+    document.getElementById('sim-ready').style.display = 'none';
+  }
+}
+
+function placePlayerInStarter(playerIdx, slotId) {
+  const placedNames = new Set();
+  Object.values(_userStarters).forEach(p => { if (p) placedNames.add(p.name); });
+  _userSubs.forEach(p => { if (p) placedNames.add(p.name); });
+  const unplaced = _userDrafted.filter(p => !placedNames.has(p.name));
+
+  const player = unplaced[playerIdx];
+  if (!player) return;
+
+  _userStarters[slotId] = { ...player, slottedPosition: slotId };
+  _selectedCardIndex = null;
+  renderSquadBuilder();
+}
+
+function placePlayerInSub(playerIdx, subIdx) {
+  const placedNames = new Set();
+  Object.values(_userStarters).forEach(p => { if (p) placedNames.add(p.name); });
+  _userSubs.forEach(p => { if (p) placedNames.add(p.name); });
+  const unplaced = _userDrafted.filter(p => !placedNames.has(p.name));
+
+  const player = unplaced[playerIdx];
+  if (!player) return;
+
+  _userSubs[subIdx] = { ...player, slottedPosition: 'SUB' };
+  _selectedCardIndex = null;
+  renderSquadBuilder();
+}
+
+async function simulateDraftMatch() {
+  if (_simulatingMatchActive) return;
+  _simulatingMatchActive = true;
+
+  const aiStarters = [];
+  const aiSubs = [];
+
+  const aiFormationSlots = FORMATIONS[_aiFormation] || FORMATIONS['4-3-3'];
+  const remainingAI = [..._aiDrafted];
+
+  aiFormationSlots.forEach(slot => {
+    let pIdx = remainingAI.findIndex(p => {
+      const nat = p.position;
+      const slotType = slot.type;
+      if (slotType === 'Goalkeeper' && nat === 'Goalkeeper') return true;
+      if (slotType === 'Defender' && nat === 'Defender') return true;
+      if (slotType === 'Midfielder' && nat === 'Midfielder') return true;
+      if (slotType === 'Forward' && nat === 'Forward') return true;
+      return false;
+    });
+
+    if (pIdx === -1) {
+      pIdx = 0;
+    }
+
+    if (remainingAI.length > 0) {
+      const p = remainingAI.splice(pIdx, 1)[0];
+      aiStarters.push({ ...p, slottedPosition: slot.id });
+    }
+  });
+
+  remainingAI.forEach(p => {
+    aiSubs.push({ ...p, slottedPosition: 'SUB' });
+  });
+
+  const userStartersList = Object.values(_userStarters);
+  const userSubsList = _userSubs.filter(Boolean);
+
+  const res = await $post('/api/auction/simulate', {
+    userStarters: userStartersList,
+    userSubs: userSubsList,
+    aiStarters: aiStarters,
+    aiSubs: aiSubs
+  });
+
+  if (res.error) {
+    alert(res.error);
+    _simulatingMatchActive = false;
+    return;
+  }
+
   document.getElementById('sb-user').textContent = '0';
   document.getElementById('sb-ai').textContent = '0';
   document.getElementById('sb-upow').textContent = 'Avg Rating: ' + res.userPower;
   document.getElementById('sb-apow').textContent = 'Avg Rating: ' + res.aiPower;
   document.getElementById('match-feed').innerHTML = '';
-  
-  // Dynamic flag icons on the scoreboard
-  const userFlags = [...new Set(_userSquad.map(p => getFlagUrl(p.team)).filter(Boolean))].slice(0, 3).map(f => `<img src="${f}" style="width:14px; height:9px; border-radius:1px; margin-right:2px; vertical-align:middle;">`).join('');
-  const aiFlags = [...new Set(_aiSquad.map(p => getFlagUrl(p.team)).filter(Boolean))].slice(0, 3).map(f => `<img src="${f}" style="width:14px; height:9px; border-radius:1px; margin-left:2px; vertical-align:middle;">`).join('');
 
-  document.querySelector('.sb-team:first-child .sb-name').innerHTML = `<span style="display:flex; align-items:center; justify-content:center; gap:6px;">⭐ User Dream Team ${userFlags}</span>`;
-  document.querySelector('.sb-team:last-child .sb-name').innerHTML = `<span style="display:flex; align-items:center; justify-content:center; gap:6px;">${aiFlags} AI Elite Manager 🤖</span>`;
+  document.getElementById('stat-u-pos').textContent = '50%';
+  document.getElementById('stat-a-pos').textContent = '50%';
+  document.getElementById('stat-u-shots').textContent = '0 (0)';
+  document.getElementById('stat-a-shots').textContent = '0 (0)';
+  document.getElementById('stat-u-fouls').textContent = '0 (0)';
+  document.getElementById('stat-a-fouls').textContent = '0 (0)';
 
+  const userFlags = [...new Set(userStartersList.map(p => getFlagUrl(p.team)).filter(Boolean))].slice(0, 3).map(f => `<img src="${f}" style="width:14px; height:9px; border-radius:1px; margin-right:2px; vertical-align:middle;">`).join('');
+  const aiFlags = [...new Set(aiStarters.map(p => getFlagUrl(p.team)).filter(Boolean))].slice(0, 3).map(f => `<img src="${f}" style="width:14px; height:9px; border-radius:1px; margin-left:2px; vertical-align:middle;">`).join('');
+
+  document.querySelector('#sim-modal .sb-team:first-child .sb-name').innerHTML = `<span style="display:flex; align-items:center; justify-content:center; gap:6px;">⭐ User Dream Team ${userFlags}</span>`;
+  document.querySelector('#sim-modal .sb-team:last-child .sb-name').innerHTML = `<span style="display:flex; align-items:center; justify-content:center; gap:6px;">${aiFlags} AI Elite Manager 🤖</span>`;
+
+  const modal = document.getElementById('sim-modal');
   modal.style.display = 'flex';
 
-  // Animate events
   let delay = 0;
-  let lastScore = '0-0';
-  res.events.forEach(ev => {
-    delay += 400;
+  res.events.forEach((ev, idx) => {
+    delay += 1800;
     setTimeout(() => {
       if (ev.type === 'GOAL') {
         const [u, a] = ev.score.split('-');
         document.getElementById('sb-user').textContent = u;
         document.getElementById('sb-ai').textContent = a;
       }
+
+      if (ev.stats) {
+        document.getElementById('stat-u-pos').textContent = res.userPos + '%';
+        document.getElementById('stat-a-pos').textContent = res.aiPos + '%';
+        document.getElementById('stat-u-shots').textContent = `${ev.stats.uShots} (${ev.stats.uSot})`;
+        document.getElementById('stat-a-shots').textContent = `${ev.stats.aShots} (${ev.stats.aSot})`;
+        document.getElementById('stat-u-fouls').textContent = `${ev.stats.uFouls} (${ev.stats.uYellows})`;
+        document.getElementById('stat-a-fouls').textContent = `${ev.stats.aFouls} (${ev.stats.aYellows})`;
+      }
+
       const div = document.createElement('div');
       div.className = 'mf-event ' + ev.type;
-      div.innerHTML = `<span class="mf-min">${ev.min}'</span><span style="flex:1">${ev.desc}</span><span class="mf-score">${ev.score}</span>`;
+      div.style.padding = '8px';
+      div.style.borderRadius = '6px';
+      div.style.fontSize = '12px';
+      div.style.display = 'flex';
+      div.style.gap = '8px';
+      div.style.alignItems = 'center';
+      
+      let badgeColor = 'rgba(255,255,255,0.1)';
+      if (ev.type === 'GOAL') badgeColor = 'rgba(34, 211, 238, 0.2)';
+      else if (ev.type === 'CARD') badgeColor = 'rgba(234, 179, 8, 0.2)';
+      else if (ev.type === 'SAVE') badgeColor = 'rgba(16, 185, 129, 0.2)';
+
+      div.innerHTML = `
+        <span style="font-weight: 800; color: var(--accent-2); background: ${badgeColor}; padding: 2px 6px; border-radius: 4px; font-size:11px;">${ev.min}'</span>
+        <span style="flex:1; color:#fff;">${ev.desc}</span>
+        <span style="font-weight: 800; color: var(--accent);">${ev.score}</span>
+      `;
+
       const feed = document.getElementById('match-feed');
       feed.appendChild(div);
       feed.scrollTop = feed.scrollHeight;
+
+      if (idx === res.events.length - 1) {
+        _simulatingMatchActive = false;
+      }
     }, delay);
   });
+}
+
+function logBid(msg, type) {
+  // Adapted to draft logs
 }
 
 /* ══════════════════ TAB 6: JOURNEY ══════════════════ */

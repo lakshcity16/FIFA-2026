@@ -1489,6 +1489,35 @@ body.theme-frost {
   font-style: italic;
 }
 
+/* ── 1v1 Draft Overhaul Styles ─────────────────────────── */
+.player-card-draft {
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.player-card-draft:hover {
+  transform: translateY(-4px) scale(1.02);
+  border-color: var(--accent-2) !important;
+  box-shadow: 0 8px 20px rgba(34, 211, 238, 0.1);
+  background: rgba(34, 211, 238, 0.03) !important;
+}
+.player-builder-card {
+  transition: all 0.25s ease;
+}
+.player-builder-card:hover {
+  transform: scale(1.03);
+  border-color: var(--accent-2) !important;
+  box-shadow: 0 4px 10px rgba(34, 211, 238, 0.08);
+}
+.player-builder-card.selected-card {
+  background: rgba(34, 211, 238, 0.1) !important;
+  border-color: var(--accent-2) !important;
+  box-shadow: 0 0 15px var(--accent-2) !important;
+  animation: pulse-border 1.5s infinite alternate;
+}
+@keyframes pulse-border {
+  0% { box-shadow: 0 0 5px var(--accent-2); }
+  100% { box-shadow: 0 0 15px var(--accent-2); }
+}
+
 
 
 

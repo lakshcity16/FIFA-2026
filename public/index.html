@@ -227,165 +227,110 @@
 <!-- ═══════════════════════════════════════════════════════ -->
 <section id="tab-auction" class="tab">
   <div class="page-title">
-    <h1>1v1 AI Draft Auction</h1>
-    <p>Budget: 120 CP · Build 11 players · All players start at <strong>1 CP</strong> · Bids rise by +1 each round</p>
+    <h1>1v1 AI Draft & Squad Builder</h1>
+    <p>Select your formation · Take turns drafting 15 players (11 starters + 4 subs) · Drag & drop onto the pitch · Simulate a realistic match</p>
   </div>
 
-  <!-- Setup -->
+  <!-- Setup: Choose Formations -->
   <div id="auction-setup" class="panel setup-card">
-    <div class="rules-grid">
-      <div class="rule"><span class="rule-num">120</span><span class="rule-label">Total CP Budget</span></div>
-      <div class="rule"><span class="rule-num">11</span><span class="rule-label">Players per Team</span></div>
-      <div class="rule"><span class="rule-num">1</span><span class="rule-label">Starting Bid (CP)</span></div>
-      <div class="rule"><span class="rule-num">+1</span><span class="rule-label">Bid Increment</span></div>
+    <div style="max-width: 500px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; align-items: center;">
+      <h3>Select Starters Formation</h3>
+      <select id="user-formation-select" style="padding: 10px 16px; font-size: 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: #fff; width: 100%; max-width: 300px; font-weight: 700;">
+        <option value="4-3-3">4-3-3 (Attack)</option>
+        <option value="4-4-2">4-4-2 (Classic)</option>
+        <option value="3-5-2">3-5-2 (Midfield Heavy)</option>
+        <option value="5-3-2">5-3-2 (Defensive)</option>
+        <option value="4-2-3-1">4-2-3-1 (Tactical)</option>
+      </select>
+      <p style="font-size: 13px; color: var(--text-2); text-align: center;">You and the AI manager will alternate turns to draft a squad of 15 players. Duplicate picks are disabled. After drafting, place your players on the pitch!</p>
+      <button class="btn-primary big-btn" id="start-auction-btn">🎯 Start 1v1 Draft</button>
     </div>
-    <p class="rules-note">Players are drawn randomly from the top pool. Every player starts at <strong>1 CP</strong>. Each time you raise a bid, it goes up by 1 CP. Pass to let AI win at current bid. Skip to draw a new player.</p>
-    <button class="btn-primary big-btn" id="start-auction-btn">🎯 Start Auction</button>
   </div>
 
-  <!-- Active Auction Board -->
-  <div id="auction-board" class="auction-layout" style="display:none">
-    <!-- Centre: Current player card -->
-    <div class="auction-centre">
-      <div class="current-player-card" id="cur-player-card">
-        <!-- Auction Timer -->
-        <div class="auction-timer-wrap">
-          <div class="auction-timer-bar" id="auction-timer-bar" style="width: 100%;"></div>
-          <span class="auction-timer-text" id="auction-timer-text">6s</span>
-        </div>
-        <div class="cur-pos" id="cur-pos">FWD</div>
-        <div class="cur-tier" id="cur-tier">Elite</div>
-        <h2 id="cur-name" style="display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 20px;">
-          <img id="cur-flag" class="fix-flag" src="" alt="" style="display: none; width: 24px; height: 16px; border-radius: 2px; object-fit: cover; box-shadow: 0 2px 5px rgba(0,0,0,0.5);">
-          <span id="cur-name-text">Loading...</span>
-        </h2>
-        <div class="cur-team" id="cur-team">Team</div>
-        <div class="cur-stats">
-          <span>Rating <strong id="cur-rating">-</strong></span>
-          <span>Goals <strong id="cur-goals">-</strong></span>
-          <span>Assists <strong id="cur-assists">-</strong></span>
-          <span>Age <strong id="cur-age">-</strong></span>
-        </div>
-        <div class="cur-bid-display">
-          Current Bid: <span id="cur-bid">1</span> CP &nbsp;·&nbsp; Held by: <span id="cur-holder">—</span>
-        </div>
+  <!-- Active Draft Board -->
+  <div id="auction-board" class="auction-layout" style="display:none; grid-template-columns: 280px 1fr 280px; gap: 16px;">
+    
+    <!-- Left: User roster -->
+    <div class="squad-panel panel" id="user-draft-panel">
+      <div class="squad-header" style="margin-bottom: 12px;">
+        <h4 style="color: var(--accent-2)">Your Roster (<span id="user-draft-count">0</span>/15)</h4>
+      </div>
+      <div id="user-draft-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 500px; overflow-y: auto;"></div>
+    </div>
+
+    <!-- Center: Available player pool & Turn Ticker -->
+    <div class="auction-centre panel">
+      <div id="draft-turn-indicator" style="text-align: center; font-size: 16px; font-weight: 800; padding: 12px; border-radius: 8px; background: rgba(34, 211, 238, 0.08); border: 1px solid rgba(34, 211, 238, 0.2); margin-bottom: 16px; color: var(--accent-2);">
+        YOUR TURN: Pick a player from the pool below
       </div>
 
-      <!-- Bid controls -->
-      <div class="bid-controls">
-        <button class="bid-btn raise" id="btn-raise">▲ Raise Bid (+1 CP)</button>
-        <button class="bid-btn pass"  id="btn-pass">✓ Pass / Accept</button>
-        <button class="bid-btn skip"  id="btn-skip">↷ Skip Player</button>
+      <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+        <input type="text" id="draft-search" placeholder="Search by player name..." style="flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: #fff; font-size: 14px;">
+        <select id="draft-position-filter" style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: #fff; font-size: 14px; font-weight: 700;">
+          <option value="ALL">All Positions</option>
+          <option value="GK">Goalkeepers</option>
+          <option value="DEF">Defenders</option>
+          <option value="MID">Midfielders</option>
+          <option value="FWD">Forwards</option>
+        </select>
       </div>
 
-      <!-- Bid log -->
-      <div class="bid-log-wrap">
-        <div class="bid-log-title">Bid History</div>
-        <div id="bid-log" class="bid-log"></div>
+      <!-- Scrollable player pool -->
+      <div id="draft-pool-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; max-height: 400px; overflow-y: auto; padding-right: 6px;">
+        <!-- Player cards injected here -->
       </div>
     </div>
 
-    <!-- Left: User squad -->
-    <div class="squad-panel panel" id="user-squad-panel">
-      <div class="squad-header">
-        <h4>Your Squad</h4>
-        <div class="budget-display">Budget: <span id="user-budget">120</span> CP</div>
+    <!-- Right: AI roster -->
+    <div class="squad-panel panel" id="ai-draft-panel">
+      <div class="squad-header" style="margin-bottom: 12px;">
+        <h4 style="color: var(--accent)">AI Roster (<span id="ai-draft-count">0</span>/15)</h4>
       </div>
-      <div class="budget-bar-wrap">
-        <div class="budget-bar-fill user" id="user-bar" style="width:100%"></div>
+      <div id="ai-draft-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 500px; overflow-y: auto;"></div>
+    </div>
+  </div>
+
+  <!-- Squad Builder Pitch (shown after draft finishes) -->
+  <div id="squad-builder-board" class="panel" style="display: none; grid-template-columns: 320px 1fr; gap: 20px; margin-top: 16px;">
+    <!-- Left: Roster List of Draggable Players -->
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <h3>Your Drafted Players</h3>
+      <p style="font-size: 12px; color: var(--text-2);">Drag players and drop them into the starter circles on the pitch or the subs bench below. You can also click a player card first, then click a slot to place them.</p>
+      <div id="draggable-players-dock" style="display: flex; flex-wrap: wrap; gap: 8px; max-height: 500px; overflow-y: auto; padding: 4px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,0.01);">
+        <!-- Draggable player cards injected here -->
       </div>
-      <div class="pitch-container" id="user-pitch">
+    </div>
+
+    <!-- Right: Pitch Visuals -->
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+      <h3 style="margin-bottom: 8px;">Starters Lineup (<span id="formation-label-text">4-3-3</span>)</h3>
+      <div class="pitch-container" id="builder-pitch" style="width: 100%; max-width: 500px; height: 500px; position: relative;">
         <div class="pitch-line pitch-outline"></div>
-        <div class="pitch-line pitch-center-line"></div>
+        <div class="pitch-line pitch-center-line" style="top: 50%;"></div>
         <div class="pitch-line pitch-center-circle"></div>
         <div class="pitch-line pitch-penalty-box top"></div>
         <div class="pitch-line pitch-penalty-box bottom"></div>
-        
-        <!-- Starter Slots -->
-        <div class="pitch-slot" style="bottom: 5%; left: 50%;" data-slot="GK">
-          <span class="slot-pos-label">GK</span>
-          <span class="slot-player-name">—</span>
-          <span class="slot-player-cp"></span>
-        </div>
-        
-        <div class="pitch-slot" style="bottom: 25%; left: 15%;" data-slot="LB">
-          <span class="slot-pos-label">LB</span>
-          <span class="slot-player-name">—</span>
-          <span class="slot-player-cp"></span>
-        </div>
-        <div class="pitch-slot" style="bottom: 20%; left: 38%;" data-slot="LCB">
-          <span class="slot-pos-label">LCB</span>
-          <span class="slot-player-name">—</span>
-          <span class="slot-player-cp"></span>
-        </div>
-        <div class="pitch-slot" style="bottom: 20%; left: 62%;" data-slot="RCB">
-          <span class="slot-pos-label">RCB</span>
-          <span class="slot-player-name">—</span>
-          <span class="slot-player-cp"></span>
-        </div>
-        <div class="pitch-slot" style="bottom: 25%; left: 85%;" data-slot="RB">
-          <span class="slot-pos-label">RB</span>
-          <span class="slot-player-name">—</span>
-          <span class="slot-player-cp"></span>
-        </div>
-        
-        <div class="pitch-slot" style="bottom: 50%; left: 25%;" data-slot="LCM">
-          <span class="slot-pos-label">LCM</span>
-          <span class="slot-player-name">—</span>
-          <span class="slot-player-cp"></span>
-        </div>
-        <div class="pitch-slot" style="bottom: 45%; left: 50%;" data-slot="CM">
-          <span class="slot-pos-label">CM</span>
-          <span class="slot-player-name">—</span>
-          <span class="slot-player-cp"></span>
-        </div>
-        <div class="pitch-slot" style="bottom: 50%; left: 75%;" data-slot="RCM">
-          <span class="slot-pos-label">RCM</span>
-          <span class="slot-player-name">—</span>
-          <span class="slot-player-cp"></span>
-        </div>
-        
-        <div class="pitch-slot" style="bottom: 75%; left: 20%;" data-slot="LW">
-          <span class="slot-pos-label">LW</span>
-          <span class="slot-player-name">—</span>
-          <span class="slot-player-cp"></span>
-        </div>
-        <div class="pitch-slot" style="bottom: 82%; left: 50%;" data-slot="ST">
-          <span class="slot-pos-label">ST</span>
-          <span class="slot-player-name">—</span>
-          <span class="slot-player-cp"></span>
-        </div>
-        <div class="pitch-slot" style="bottom: 75%; left: 80%;" data-slot="RW">
-          <span class="slot-pos-label">RW</span>
-          <span class="slot-player-name">—</span>
-          <span class="slot-player-cp"></span>
-        </div>
+        <!-- Dynamic starter slots will be injected here by app.js -->
       </div>
-    </div>
 
-    <!-- Right: AI squad -->
-    <div class="squad-panel panel" id="ai-squad-panel">
-      <div class="squad-header">
-        <h4>AI Manager</h4>
-        <div class="budget-display">Budget: <span id="ai-budget">120</span> CP</div>
+      <!-- Subs Bench Area -->
+      <h3 style="margin-top: 16px; margin-bottom: 8px;">Subs Bench</h3>
+      <div id="bench-slots-container" style="display: flex; gap: 12px; justify-content: center; width: 100%; max-width: 500px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: rgba(0,0,0,0.2);">
+        <!-- 4 sub slots injected here -->
       </div>
-      <div class="budget-bar-wrap">
-        <div class="budget-bar-fill ai" id="ai-bar" style="width:100%"></div>
-      </div>
-      <div id="ai-roster" class="roster-list"></div>
     </div>
   </div>
 
-  <!-- Simulate match button (shown when draft complete) -->
+  <!-- Simulate match button -->
   <div id="sim-ready" style="display:none; text-align:center; margin-top:20px">
-    <button class="btn-primary big-btn" id="simulate-btn">🏟️ Simulate 1v1 Match</button>
+    <button class="btn-primary big-btn" id="simulate-btn" style="background: linear-gradient(135deg, var(--accent-2), var(--accent)); text-shadow: 0 1px 3px rgba(0,0,0,0.5);">🏟️ Simulate 1v1 Match</button>
   </div>
 
   <!-- Match simulation modal -->
   <div id="sim-modal" class="modal" style="display:none">
-    <div class="modal-box">
+    <div class="modal-box" style="max-width: 650px;">
       <div class="modal-header">
-        <h3>Match Simulation</h3>
+        <h3>1v1 AI Dream Match</h3>
         <button id="close-modal" class="modal-close">&times;</button>
       </div>
       <div class="scoreboard-row">
@@ -401,7 +346,27 @@
           <div class="sb-power" id="sb-apow"></div>
         </div>
       </div>
-      <div id="match-feed" class="match-feed"></div>
+      
+      <!-- Stats breakdown updated dynamically -->
+      <div id="sim-stats-panel" style="display: flex; justify-content: space-around; margin: 12px 0; padding: 10px; border-radius: 8px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); font-size: 12px;">
+        <div style="text-align: center;">
+          <div style="font-weight: 800; color: var(--accent-2);" id="stat-u-pos">50%</div>
+          <div style="color: var(--text-2);">Possession</div>
+          <div style="font-weight: 800; color: var(--accent);" id="stat-a-pos">50%</div>
+        </div>
+        <div style="text-align: center;">
+          <div style="font-weight: 800; color: var(--accent-2);" id="stat-u-shots">0</div>
+          <div style="color: var(--text-2);">Shots (SOT)</div>
+          <div style="font-weight: 800; color: var(--accent);" id="stat-a-shots">0</div>
+        </div>
+        <div style="text-align: center;">
+          <div style="font-weight: 800; color: var(--accent-2);" id="stat-u-fouls">0</div>
+          <div style="color: var(--text-2);">Fouls (Cards)</div>
+          <div style="font-weight: 800; color: var(--accent);" id="stat-a-fouls">0</div>
+        </div>
+      </div>
+
+      <div id="match-feed" class="match-feed" style="height: 250px; overflow-y: auto; padding: 10px; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px;"></div>
     </div>
   </div>
 </section>
