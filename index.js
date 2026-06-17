@@ -1377,85 +1377,40 @@ Be specific, use the data provided, and sound like a Sky Sports analyst.`;
   }
 });
 
-// 9. Auction Pool — top players per sub-position from real WC 2026 CSV data
+// 9. Auction Pool — All valid players from real WC 2026 CSV data
 app.get('/api/auction/pool', (req, res) => {
-  const posMapping = {
-    GK: p => p.position === 'Goalkeeper',
-    LCB: p => p.position === 'Defender',
-    RCB: p => p.position === 'Defender',
-    LB: p => p.position === 'Defender',
-    RB: p => p.position === 'Defender',
-    CDM: p => p.position === 'Midfielder',
-    CM: p => p.position === 'Midfielder',
-    CAM: p => p.position === 'Midfielder',
-    LW: p => p.position === 'Forward',
-    RW: p => p.position === 'Forward',
-    ST: p => p.position === 'Forward',
-  };
-
-  // Get real players with rating >= 6.8 who actually played
-  const realPlayers = CSV_PLAYERS.filter(p => p.rating >= 6.8 && p.minutes > 0);
+  // Get all real players with valid minutes
+  const realPlayers = CSV_PLAYERS.filter(p => p.minutes >= 0);
   
   const pool = [];
   const used = new Set();
 
-  // Build GKs from top 8 GKs in CSV
-  const gks = realPlayers.filter(p => p.position === 'Goalkeeper').sort((a,b) => b.rating - a.rating);
-  gks.slice(0, 8).forEach((p, i) => {
-    if (!used.has(p.name)) {
-      used.add(p.name);
-      pool.push({ ...p, position: 'GK', tier: p.rating >= 8.0 ? 'Elite' : p.rating >= 7.5 ? 'Star' : 'Good' });
-    }
-  });
-
-  // Build defenders: 10 per sub-position
-  const defenders = realPlayers.filter(p => p.position === 'Defender').sort((a,b) => b.rating - a.rating);
-  const defSlots = ['LCB', 'RCB', 'LB', 'RB'];
-  const defPerSlot = 10;
-  let defIdx = 0;
-  defenders.forEach(p => {
+  realPlayers.forEach(p => {
     if (used.has(p.name)) return;
-    const slot = defSlots[defIdx % defSlots.length];
-    if (pool.filter(x => x.position === slot).length < defPerSlot) {
-      used.add(p.name);
-      defIdx++;
-      pool.push({ ...p, position: slot, tier: p.rating >= 8.0 ? 'Elite' : p.rating >= 7.5 ? 'Star' : 'Good' });
-    }
+    used.add(p.name);
+    
+    // Assign generic position if not specific enough
+    let slot = p.position;
+    if (p.position === 'Goalkeeper') slot = 'GK';
+    else if (p.position === 'Defender') slot = 'CB';
+    else if (p.position === 'Midfielder') slot = 'CM';
+    else if (p.position === 'Forward') slot = 'ST';
+    
+    // Tier based on rating
+    let tier = 'Good';
+    if (p.rating >= 8.0) tier = 'Elite';
+    else if (p.rating >= 7.5) tier = 'Star';
+    else if (p.rating >= 7.0) tier = 'Solid';
+    
+    pool.push({ ...p, position: slot, tier });
   });
 
-  // Build midfielders: 10 per sub-position
-  const mids = realPlayers.filter(p => p.position === 'Midfielder').sort((a,b) => b.rating - a.rating);
-  const midSlots = ['CDM', 'CM', 'CAM'];
-  let midIdx = 0;
-  mids.forEach(p => {
-    if (used.has(p.name)) return;
-    const slot = midSlots[midIdx % midSlots.length];
-    if (pool.filter(x => x.position === slot).length < 10) {
-      used.add(p.name);
-      midIdx++;
-      pool.push({ ...p, position: slot, tier: p.rating >= 8.0 ? 'Elite' : p.rating >= 7.5 ? 'Star' : 'Good' });
-    }
-  });
-
-  // Build forwards: 10 per sub-position
-  const fwds = realPlayers.filter(p => p.position === 'Forward').sort((a,b) => b.rating - a.rating);
-  const fwdSlots = ['ST', 'LW', 'RW'];
-  let fwdIdx = 0;
-  fwds.forEach(p => {
-    if (used.has(p.name)) return;
-    const slot = fwdSlots[fwdIdx % fwdSlots.length];
-    if (pool.filter(x => x.position === slot).length < 10) {
-      used.add(p.name);
-      fwdIdx++;
-      pool.push({ ...p, position: slot, tier: p.rating >= 8.0 ? 'Elite' : p.rating >= 7.5 ? 'Star' : 'Good' });
-    }
-  });
-
-  // Shuffle pool
+  // Shuffle pool to add variety to top picks if ratings are equal
   for (let i = pool.length-1; i > 0; i--) {
     const j = Math.floor(Math.random()*(i+1));
     [pool[i],pool[j]] = [pool[j],pool[i]];
   }
+  
   res.json({ players: pool, total: pool.length });
 });
 

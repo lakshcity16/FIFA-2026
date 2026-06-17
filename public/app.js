@@ -343,9 +343,9 @@ async function initOverview() {
   const applyDateFilter = async () => {
     if (!dateInput) return;
     const selectedDate = dateInput.value;
-    const hours = _simulatedDate.getUTCHours();
-    const mins = _simulatedDate.getUTCMinutes();
-    const nextDt = new Date(`${selectedDate}T${String(hours).padStart(2,'0')}:${String(mins).padStart(2,'0')}:00Z`);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isToday = selectedDate === todayStr;
+    const nextDt = isToday ? new Date() : new Date(`${selectedDate}T23:59:00Z`);
     
     _simulatedDate = nextDt;
     updateTimeMachineUI();
