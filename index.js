@@ -474,7 +474,8 @@ Respond EXACTLY in this JSON format, nothing else:
 {
   "home_score": integer,
   "away_score": integer,
-  "scorers": [ { "team": "home"|"away", "name": "Player Name", "min": integer } ],
+  "scorers": [ { "team": "home"|"away", "name": "Player Name", "min": integer, "assist": "Player Name or null" } ],
+  "top_performers": [ { "name": "Player Name", "team": "home"|"away", "rating": float, "xg": float } ],
   "stats": {
     "possession": { "home": integer, "away": integer },
     "shots": { "home": integer, "away": integer },
@@ -1249,7 +1250,44 @@ app.get('/api/fixtures', (req, res) => {
 // 5. Top performers (dynamic)
 app.get('/api/performers', (req, res) => {
   const simTime = req.query.simulated_time || new Date().toISOString();
-  const { performers } = getTournamentState(simTime);
+  const { fixtures } = getTournamentState(simTime);
+  
+  const pMap = {};
+  fixtures.forEach(f => {
+    if (f.is_played && f.scorers) {
+      f.scorers.forEach(s => {
+        if (!pMap[s.name]) pMap[s.name] = { name: s.name, team: s.team === 'home' ? f.home : f.away, goals: 0, assists: 0, rating: 7.0, xg: 0, saves: 0 };
+        pMap[s.name].goals += 1;
+        pMap[s.name].rating = Math.min(10, pMap[s.name].rating + 0.8);
+        pMap[s.name].xg += 0.45;
+        
+        if (s.assist) {
+          if (!pMap[s.assist]) pMap[s.assist] = { name: s.assist, team: s.team === 'home' ? f.home : f.away, goals: 0, assists: 0, rating: 7.0, xg: 0, saves: 0 };
+          pMap[s.assist].assists += 1;
+          pMap[s.assist].rating = Math.min(10, pMap[s.assist].rating + 0.5);
+        }
+      });
+    }
+    // Merge LLM top performers if available
+    const realDetail = REAL_MATCH_DETAILS[f.id];
+    if (realDetail && realDetail.top_performers) {
+      realDetail.top_performers.forEach(tp => {
+        if (!pMap[tp.name]) pMap[tp.name] = { name: tp.name, team: tp.team === 'home' ? f.home : f.away, goals: 0, assists: 0, rating: 6.5, xg: 0, saves: 0 };
+        pMap[tp.name].rating = Math.max(pMap[tp.name].rating, tp.rating);
+        if (tp.xg) pMap[tp.name].xg += tp.xg;
+      });
+    }
+  });
+
+  const arr = Object.values(pMap);
+  const performers = {
+    goals: [...arr].sort((a,b) => b.goals - a.goals || b.rating - a.rating).slice(0,10),
+    assists: [...arr].sort((a,b) => b.assists - a.assists || b.rating - a.rating).slice(0,10),
+    rating: [...arr].sort((a,b) => b.rating - a.rating).slice(0,10),
+    xg: [...arr].sort((a,b) => b.xg - a.xg || b.rating - a.rating).slice(0,10),
+    saves: []
+  };
+  
   res.json(performers);
 });
 
