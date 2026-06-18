@@ -1497,6 +1497,29 @@ function updateDraftRosterLists() {
   });
 }
 
+function isPositionFull(who, position) {
+  const roster = who === 'user' ? _userDrafted : _aiDrafted;
+  
+  const isGK = position === 'GK';
+  const isDEF = ['LB', 'LCB', 'RCB', 'RB', 'CB', 'LWB', 'RWB'].includes(position);
+  const isMID = ['CDM', 'CM', 'CAM'].includes(position);
+  const isFWD = ['LW', 'RW', 'ST'].includes(position);
+  
+  if (isGK) {
+    return roster.filter(p => p.position === 'GK').length >= 2;
+  }
+  if (isDEF) {
+    return roster.filter(p => ['LB', 'LCB', 'RCB', 'RB', 'CB', 'LWB', 'RWB'].includes(p.position)).length >= 5;
+  }
+  if (isMID) {
+    return roster.filter(p => ['CDM', 'CM', 'CAM'].includes(p.position)).length >= 4;
+  }
+  if (isFWD) {
+    return roster.filter(p => ['LW', 'RW', 'ST'].includes(p.position)).length >= 4;
+  }
+  return false;
+}
+
 function renderDraftPool() {
   const grid = document.getElementById('draft-pool-grid');
   grid.innerHTML = '';
@@ -1572,6 +1595,12 @@ function renderDraftPool() {
     const groupPos = ['GK'].includes(p.position) ? 'GK' : ['LB', 'LCB', 'RCB', 'RB'].includes(p.position) ? 'DEF' : ['CDM', 'CM', 'CAM'].includes(p.position) ? 'MID' : 'FWD';
     const flag = getFlagUrl(p.team);
     
+    const posFull = isPositionFull('user', p.position);
+    const isUserTurn = _draftTurn === 'user';
+    const btnDisabled = (!isUserTurn || posFull);
+    const btnText = posFull ? 'Position Full' : 'Draft Player';
+    const btnClass = posFull ? 'btn-secondary' : 'btn-primary';
+
     const card = document.createElement('div');
     card.className = 'panel player-card-draft';
     card.style.background = 'rgba(255,255,255,0.01)';
@@ -1596,12 +1625,12 @@ function renderDraftPool() {
         <span>Goals: ${p.goals || 0}</span>
         <span>Assists: ${p.assists || 0}</span>
       </div>
-      <button class="btn-primary" style="padding:6px; font-size:11px; margin-top:4px;" ${_draftTurn !== 'user' ? 'disabled' : ''}>Draft Player</button>
+      <button class="${btnClass}" style="padding:6px; font-size:11px; margin-top:4px;" ${btnDisabled ? 'disabled' : ''}>${btnText}</button>
     `;
 
     const btn = card.querySelector('button');
     btn.addEventListener('click', () => {
-      if (_draftTurn !== 'user') return;
+      if (_draftTurn !== 'user' || posFull) return;
       draftPlayer('user', p);
     });
 
@@ -1610,6 +1639,10 @@ function renderDraftPool() {
 }
 
 function draftPlayer(who, player) {
+  if (isPositionFull(who, player.position)) {
+    return;
+  }
+
   if (who === 'user') {
     _userDrafted.push(player);
     updateDraftRosterLists();
@@ -1642,38 +1675,14 @@ function draftPlayer(who, player) {
 function aiDraftTurn() {
   if (_aiDrafted.length >= 15) return;
 
-  const neededGK = 2;
-  const neededDEF = 5;
-  const neededMID = 4;
-  const neededFWD = 4;
-
-  const currentGK = _aiDrafted.filter(p => p.position === 'GK').length;
-  const currentDEF = _aiDrafted.filter(p => ['LB', 'LCB', 'RCB', 'RB', 'CB', 'LWB', 'RWB'].includes(p.position)).length;
-  const currentMID = _aiDrafted.filter(p => ['CDM', 'CM', 'CAM'].includes(p.position)).length;
-  const currentFWD = _aiDrafted.filter(p => ['LW', 'RW', 'ST'].includes(p.position)).length;
-
-  let chosenType = null;
-  if (currentGK < neededGK) chosenType = 'Goalkeeper';
-  else if (currentDEF < neededDEF) chosenType = 'Defender';
-  else if (currentMID < neededMID) chosenType = 'Midfielder';
-  else if (currentFWD < neededFWD) chosenType = 'Forward';
-
   const available = _pool.filter(p => {
     return !_userDrafted.some(x => x.name === p.name) && !_aiDrafted.some(x => x.name === p.name);
   });
 
   if (available.length === 0) return;
 
-  let candidates = [];
-  if (chosenType) {
-    candidates = available.filter(p => {
-      if (chosenType === 'Goalkeeper') return p.position === 'GK';
-      if (chosenType === 'Defender') return ['LB', 'LCB', 'RCB', 'RB', 'CB', 'LWB', 'RWB'].includes(p.position);
-      if (chosenType === 'Midfielder') return ['CDM', 'CM', 'CAM'].includes(p.position);
-      if (chosenType === 'Forward') return ['LW', 'RW', 'ST'].includes(p.position);
-      return false;
-    });
-  }
+  // AI drafts any position that is NOT full
+  let candidates = available.filter(p => !isPositionFull('ai', p.position));
 
   if (candidates.length === 0) {
     candidates = [...available];
