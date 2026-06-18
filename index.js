@@ -151,11 +151,11 @@ const REAL_MATCH_DETAILS = {
   M004: {
     home_score: 4, away_score: 1,
     scorers: [
-      { team: 'home', name: 'Damián Bobadilla (o.g.)', min: 7 },
-      { team: 'home', name: 'Folarin Balogun', min: 31 },
-      { team: 'home', name: 'Folarin Balogun', min: 45 },
-      { team: 'away', name: 'Mauricio', min: 73 },
-      { team: 'home', name: 'Giovanni Reyna', min: 90 }
+      { team: 'home', name: 'Damián Bobadilla (o.g.)', min: 7, assist: null },
+      { team: 'home', name: 'Folarin Balogun', min: 31, assist: 'Christian Pulisic' },
+      { team: 'home', name: 'Folarin Balogun', min: 45, assist: 'Weston McKennie' },
+      { team: 'away', name: 'Mauricio', min: 73, assist: 'Julio Enciso' },
+      { team: 'home', name: 'Giovanni Reyna', min: 90, assist: 'Antonee Robinson' }
     ],
     stats: {
       possession: { home: 63, away: 37 },
@@ -171,7 +171,7 @@ const REAL_MATCH_DETAILS = {
   M005: {
     home_score: 0, away_score: 1,
     scorers: [
-      { team: 'away', name: 'John McGinn', min: 29 }
+      { team: 'away', name: 'John McGinn', min: 29, assist: 'Scott McTominay' }
     ],
     stats: {
       possession: { home: 42, away: 58 },
@@ -187,8 +187,8 @@ const REAL_MATCH_DETAILS = {
   M006: {
     home_score: 2, away_score: 0,
     scorers: [
-      { team: 'home', name: 'Nestory Irankunda', min: 27 },
-      { team: 'home', name: 'Connor Metcalfe', min: 75 }
+      { team: 'home', name: 'Nestory Irankunda', min: 27, assist: 'Jackson Irvine' },
+      { team: 'home', name: 'Connor Metcalfe', min: 75, assist: 'Craig Goodwin' }
     ],
     stats: {
       possession: { home: 46, away: 54 },
@@ -204,8 +204,8 @@ const REAL_MATCH_DETAILS = {
   M007: {
     home_score: 1, away_score: 1,
     scorers: [
-      { team: 'away', name: 'Ismael Saibari', min: 21 },
-      { team: 'home', name: 'Vinícius Júnior', min: 32 }
+      { team: 'away', name: 'Ismael Saibari', min: 21, assist: 'Hakim Ziyech' },
+      { team: 'home', name: 'Vinícius Júnior', min: 32, assist: 'Rodrygo' }
     ],
     stats: {
       possession: { home: 56, away: 44 },
@@ -221,8 +221,8 @@ const REAL_MATCH_DETAILS = {
   M008: {
     home_score: 1, away_score: 1,
     scorers: [
-      { team: 'away', name: 'Breel Embolo', min: 17 },
-      { team: 'home', name: 'Miro Muheim (o.g.)', min: 90 }
+      { team: 'away', name: 'Breel Embolo', min: 17, assist: 'Granit Xhaka' },
+      { team: 'home', name: 'Miro Muheim (o.g.)', min: 90, assist: null }
     ],
     stats: {
       possession: { home: 44, away: 56 },
@@ -238,7 +238,7 @@ const REAL_MATCH_DETAILS = {
   M009: {
     home_score: 1, away_score: 0,
     scorers: [
-      { team: 'home', name: 'Amad Diallo', min: 90 }
+      { team: 'home', name: 'Amad Diallo', min: 90, assist: 'Franck Kessié' }
     ],
     stats: {
       possession: { home: 49, away: 51 },
@@ -254,14 +254,14 @@ const REAL_MATCH_DETAILS = {
   M010: {
     home_score: 7, away_score: 1,
     scorers: [
-      { team: 'home', name: 'Felix Nmecha', min: 6 },
-      { team: 'home', name: 'Nico Schlotterbeck', min: 38 },
-      { team: 'home', name: 'Kai Havertz', min: 45 },
-      { team: 'home', name: 'Jamal Musiala', min: 47 },
-      { team: 'home', name: 'Nathaniel Brown', min: 68 },
-      { team: 'home', name: 'Deniz Undav', min: 78 },
-      { team: 'home', name: 'Kai Havertz', min: 88 },
-      { team: 'away', name: 'Livano Comenencia', min: 21 }
+      { team: 'home', name: 'Felix Nmecha', min: 6, assist: 'Leroy Sané' },
+      { team: 'home', name: 'Nico Schlotterbeck', min: 38, assist: 'Joshua Kimmich' },
+      { team: 'home', name: 'Kai Havertz', min: 45, assist: 'Florian Wirtz' },
+      { team: 'home', name: 'Jamal Musiala', min: 47, assist: 'Kai Havertz' },
+      { team: 'home', name: 'Nathaniel Brown', min: 68, assist: 'Serge Gnabry' },
+      { team: 'home', name: 'Deniz Undav', min: 78, assist: 'Jamal Musiala' },
+      { team: 'home', name: 'Kai Havertz', min: 88, assist: 'Florian Wirtz' },
+      { team: 'away', name: 'Livano Comenencia', min: 21, assist: 'Juninho Bacuna' }
     ],
     stats: {
       possession: { home: 65, away: 35 },
@@ -277,10 +277,10 @@ const REAL_MATCH_DETAILS = {
   M011: {
     home_score: 2, away_score: 2,
     scorers: [
-      { team: 'home', name: 'Virgil van Dijk', min: 51 },
-      { team: 'away', name: 'Keito Nakamura', min: 57 },
-      { team: 'home', name: 'Crysencio Summerville', min: 64 },
-      { team: 'away', name: 'Daichi Kamada', min: 89 }
+      { team: 'home', name: 'Virgil van Dijk', min: 51, assist: 'Cody Gakpo' },
+      { team: 'away', name: 'Keito Nakamura', min: 57, assist: 'Wataru Endo' },
+      { team: 'home', name: 'Crysencio Summerville', min: 64, assist: 'Xavi Simons' },
+      { team: 'away', name: 'Daichi Kamada', min: 89, assist: 'Kaoru Mitoma' }
     ],
     stats: {
       possession: { home: 53, away: 47 },
@@ -296,12 +296,12 @@ const REAL_MATCH_DETAILS = {
   M012: {
     home_score: 5, away_score: 1,
     scorers: [
-      { team: 'home', name: 'Yasin Ayari', min: 7 },
-      { team: 'home', name: 'Alexander Isak', min: 30 },
-      { team: 'away', name: 'Omar Rekik', min: 43 },
-      { team: 'home', name: 'Viktor Gyökeres', min: 59 },
-      { team: 'home', name: 'Mattias Svanberg', min: 84 },
-      { team: 'home', name: 'Yasin Ayari', min: 90 }
+      { team: 'home', name: 'Yasin Ayari', min: 7, assist: 'Dejan Kulusevski' },
+      { team: 'home', name: 'Alexander Isak', min: 30, assist: 'Emil Forsberg' },
+      { team: 'away', name: 'Omar Rekik', min: 43, assist: 'Hannibal Mejbri' },
+      { team: 'home', name: 'Viktor Gyökeres', min: 59, assist: 'Alexander Isak' },
+      { team: 'home', name: 'Mattias Svanberg', min: 84, assist: 'Anthony Elanga' },
+      { team: 'home', name: 'Yasin Ayari', min: 90, assist: 'Viktor Gyökeres' }
     ],
     stats: {
       possession: { home: 58, away: 42 },
@@ -317,8 +317,8 @@ const REAL_MATCH_DETAILS = {
   M013: {
     home_score: 1, away_score: 1,
     scorers: [
-      { team: 'home', name: 'Abdulelah Al-Amri', min: 41 },
-      { team: 'away', name: 'Maxi Araújo', min: 80 }
+      { team: 'home', name: 'Abdulelah Al-Amri', min: 41, assist: 'Salem Al-Dawsari' },
+      { team: 'away', name: 'Maxi Araújo', min: 80, assist: 'Federico Valverde' }
     ],
     stats: {
       possession: { home: 45, away: 55 },
@@ -348,10 +348,10 @@ const REAL_MATCH_DETAILS = {
   M015: {
     home_score: 2, away_score: 2,
     scorers: [
-      { team: 'away', name: 'Elijah Just', min: 7 },
-      { team: 'home', name: 'Ramin Rezaeian', min: 32 },
-      { team: 'away', name: 'Elijah Just', min: 54 },
-      { team: 'home', name: 'Mohammad Mohebbi', min: 64 }
+      { team: 'away', name: 'Elijah Just', min: 7, assist: 'Chris Wood' },
+      { team: 'home', name: 'Ramin Rezaeian', min: 32, assist: 'Mehdi Taremi' },
+      { team: 'away', name: 'Elijah Just', min: 54, assist: 'Sarpreet Singh' },
+      { team: 'home', name: 'Mohammad Mohebbi', min: 64, assist: 'Sardar Azmoun' }
     ],
     stats: {
       possession: { home: 51, away: 49 },
@@ -367,8 +367,8 @@ const REAL_MATCH_DETAILS = {
   M016: {
     home_score: 1, away_score: 1,
     scorers: [
-      { team: 'away', name: 'Emam Ashour', min: 19 },
-      { team: 'home', name: 'Mohamed Hany (o.g.)', min: 66 }
+      { team: 'away', name: 'Emam Ashour', min: 19, assist: 'Mohamed Salah' },
+      { team: 'home', name: 'Mohamed Hany (o.g.)', min: 66, assist: null }
     ],
     stats: {
       possession: { home: 54, away: 46 },
@@ -385,10 +385,10 @@ const REAL_MATCH_DETAILS = {
   M017: {
     home_score: 3, away_score: 1,
     scorers: [
-      { team: 'home', name: 'Kylian Mbappé', min: 66 },
-      { team: 'home', name: 'Bradley Barcola', min: 82 },
-      { team: 'away', name: 'Ibrahim Mbaye', min: 90 },
-      { team: 'home', name: 'Kylian Mbappé', min: 96 }
+      { team: 'home', name: 'Kylian Mbappé', min: 66, assist: 'Antoine Griezmann' },
+      { team: 'home', name: 'Bradley Barcola', min: 82, assist: 'Ousmane Dembélé' },
+      { team: 'away', name: 'Ibrahim Mbaye', min: 90, assist: 'Nicolas Jackson' },
+      { team: 'home', name: 'Kylian Mbappé', min: 96, assist: 'Warren Zaïre-Emery' }
     ],
     stats: {
       possession: { home: 58, away: 42 },
@@ -404,11 +404,11 @@ const REAL_MATCH_DETAILS = {
   M018: {
     home_score: 1, away_score: 4,
     scorers: [
-      { team: 'away', name: 'Erling Haaland', min: 29 },
-      { team: 'home', name: 'Aymen Hussein', min: 39 },
-      { team: 'away', name: 'Erling Haaland', min: 43 },
-      { team: 'away', name: 'Leo Østigård', min: 76 },
-      { team: 'away', name: 'Aymen Hussein (o.g.)', min: 96 }
+      { team: 'away', name: 'Erling Haaland', min: 29, assist: 'Martin Ødegaard' },
+      { team: 'home', name: 'Aymen Hussein', min: 39, assist: 'Ali Jasim' },
+      { team: 'away', name: 'Erling Haaland', min: 43, assist: 'Antonio Nusa' },
+      { team: 'away', name: 'Leo Østigård', min: 76, assist: 'Martin Ødegaard' },
+      { team: 'away', name: 'Aymen Hussein (o.g.)', min: 96, assist: null }
     ],
     stats: {
       possession: { home: 38, away: 62 },
@@ -424,9 +424,9 @@ const REAL_MATCH_DETAILS = {
   M019: {
     home_score: 3, away_score: 0,
     scorers: [
-      { team: 'home', name: 'Lionel Messi', min: 17 },
-      { team: 'home', name: 'Lionel Messi', min: 60 },
-      { team: 'home', name: 'Lionel Messi', min: 76 }
+      { team: 'home', name: 'Lionel Messi', min: 17, assist: 'Alexis Mac Allister' },
+      { team: 'home', name: 'Lionel Messi', min: 60, assist: 'Rodrigo De Paul' },
+      { team: 'home', name: 'Lionel Messi', min: 76, assist: 'Lautaro Martínez' }
     ],
     stats: {
       possession: { home: 55, away: 45 },
@@ -980,7 +980,8 @@ function generateDynamicMatchStats(match, minute) {
             allScorers.push({
               team: isHome ? 'home' : 'away',
               name: name,
-              min: ev.time.elapsed || 90
+              min: ev.time.elapsed || 90,
+              assist: ev.assist?.name || null
             });
           }
         });
@@ -1070,7 +1071,104 @@ function getTournamentState(simTime) {
     group.sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf);
   });
 
-  return { fixtures: liveFixtures, groups: liveGroups, playerStats: {} };
+    // Aggregate dynamic tournament player statistics
+  const playerStats = {};
+  
+  // Initialize playerStats for all players in SQUADS
+  for (const [teamName, squad] of Object.entries(SQUADS)) {
+    squad.forEach(p => {
+      playerStats[p.name] = {
+        name: p.name,
+        team: teamName,
+        position: p.position,
+        goals: 0,
+        assists: 0,
+        minutes: 0,
+        ratingSum: 0,
+        matchesPlayed: 0,
+        baseRating: p.rating
+      };
+    });
+  }
+
+  liveFixtures.forEach(f => {
+    if (!f.is_played) return;
+
+    const homeSquad = SQUADS[f.home] || [];
+    const awaySquad = SQUADS[f.away] || [];
+
+    // Top 11 players by rating in home and away squads are assumed to play the match
+    const homeLineup = [...homeSquad].sort((a,b) => b.rating - a.rating).slice(0, 11).map(p => p.name);
+    const awayLineup = [...awaySquad].sort((a,b) => b.rating - a.rating).slice(0, 11).map(p => p.name);
+
+    const matchPlayers = new Set([...homeLineup, ...awayLineup]);
+
+    if (f.scorers) {
+      f.scorers.forEach(s => {
+        if (s.name) {
+          const squadPlayer = findSquadPlayer(s.name);
+          const canonName = squadPlayer ? squadPlayer.name : s.name;
+          matchPlayers.add(canonName);
+          if (playerStats[canonName]) {
+            playerStats[canonName].goals += 1;
+          }
+        }
+        if (s.assist) {
+          const squadPlayer = findSquadPlayer(s.assist);
+          const canonName = squadPlayer ? squadPlayer.name : s.assist;
+          matchPlayers.add(canonName);
+          if (playerStats[canonName]) {
+            playerStats[canonName].assists += 1;
+          }
+        }
+      });
+    }
+
+    matchPlayers.forEach(pName => {
+      const p = playerStats[pName];
+      if (p) {
+        p.matchesPlayed += 1;
+        p.minutes += 90;
+
+        let matchRating = p.baseRating;
+        
+        if (f.scorers) {
+          const goalsInMatch = f.scorers.filter(s => {
+            const squadPlayer = findSquadPlayer(s.name);
+            return (squadPlayer ? squadPlayer.name : s.name) === pName;
+          }).length;
+          matchRating += goalsInMatch * 1.0;
+          
+          const assistsInMatch = f.scorers.filter(s => {
+            if (!s.assist) return false;
+            const squadPlayer = findSquadPlayer(s.assist);
+            return (squadPlayer ? squadPlayer.name : s.assist) === pName;
+          }).length;
+          matchRating += assistsInMatch * 0.6;
+        }
+
+        const isHome = p.team === f.home;
+        const won = isHome ? (f.home_score > f.away_score) : (f.away_score > f.home_score);
+        const lost = isHome ? (f.home_score < f.away_score) : (f.away_score < f.home_score);
+        if (won) matchRating += 0.3;
+        if (lost) matchRating -= 0.3;
+
+        p.ratingSum += Math.min(10.0, Math.max(3.0, matchRating));
+      }
+    });
+  });
+
+  // Calculate averages
+  for (const pName in playerStats) {
+    const p = playerStats[pName];
+    if (p.matchesPlayed > 0) {
+      p.rating = parseFloat((p.ratingSum / p.matchesPlayed).toFixed(2));
+    } else {
+      p.rating = p.baseRating;
+    }
+  }
+
+  return { fixtures: liveFixtures, groups: liveGroups, playerStats };
 }
 
 function getFuzzySquadPlayer(teamName, positionGroup) {
@@ -1266,7 +1364,8 @@ app.get('/api/team/:name', (req, res) => {
       ...p,
       goals: dynamicPlayer.goals !== undefined ? dynamicPlayer.goals : p.goals,
       assists: dynamicPlayer.assists !== undefined ? dynamicPlayer.assists : p.assists,
-      rating: dynamicPlayer.rating !== undefined ? dynamicPlayer.rating : p.rating
+      rating: dynamicPlayer.rating !== undefined ? dynamicPlayer.rating : p.rating,
+      minutes: dynamicPlayer.minutes !== undefined ? dynamicPlayer.minutes : p.minutes
     };
   });
 

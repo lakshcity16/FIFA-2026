@@ -2,6 +2,8 @@
 
 An advanced, enterprise-grade AI simulation platform and match manager for the upcoming FIFA World Cup 2026. This project leverages LLM integration (Groq + LLaMA 3.1) and real-world player analytics to create an immersive, dynamic tournament experience.
 
+🌐 **Live Demo (Render):** [https://fifa-2026-17jq.onrender.com/](https://fifa-2026-17jq.onrender.com/)
+
 ![Tournament Overview](https://i.imgur.com/your-screenshot-url.png) *<!-- Replace with actual screenshot -->*
 
 ## ✨ Key Features
