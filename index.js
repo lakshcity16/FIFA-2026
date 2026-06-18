@@ -1386,8 +1386,8 @@ app.get('/api/teams', (req, res) => {
 });
 
 // 2. All 12 groups with live standings
-app.get('/api/groups', async (req, res) => {
-  await syncOpenFootballData();
+app.get('/api/groups', (req, res) => {
+  syncOpenFootballData();
   const simTime = req.query.simulated_time || new Date().toISOString();
   const { groups } = getTournamentState(simTime);
   res.json({ groups });
@@ -1457,8 +1457,8 @@ app.get('/api/match/:id/highlights-redirect', async (req, res) => {
 });
 
 // 3. Single team full profile
-app.get('/api/team/:name', async (req, res) => {
-  await syncOpenFootballData();
+app.get('/api/team/:name', (req, res) => {
+  syncOpenFootballData();
   const name = decodeURIComponent(req.params.name);
   const simTime = req.query.simulated_time || new Date().toISOString();
   const { fixtures: allFix, groups, playerStats } = getTournamentState(simTime);
@@ -1512,8 +1512,8 @@ app.get('/api/team/:name', async (req, res) => {
 });
 
 // 4. All fixtures (with optional date filter)
-app.get('/api/fixtures', async (req, res) => {
-  await syncOpenFootballData();
+app.get('/api/fixtures', (req, res) => {
+  syncOpenFootballData();
   const simTime = req.query.simulated_time || new Date().toISOString();
   console.log(`[API /api/fixtures] query simulated_time = ${req.query.simulated_time}, resolved simTime = ${simTime}`);
   const { fixtures } = getTournamentState(simTime);
@@ -1534,8 +1534,8 @@ app.get('/api/fixtures', async (req, res) => {
 });
 
 // 5. Top performers (dynamic)
-app.get('/api/performers', async (req, res) => {
-  await syncOpenFootballData();
+app.get('/api/performers', (req, res) => {
+  syncOpenFootballData();
   const simTime = req.query.simulated_time || new Date().toISOString();
   const { fixtures } = getTournamentState(simTime);
   
