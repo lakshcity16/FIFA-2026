@@ -1,0 +1,4 @@
+Use this file as the primary retrieval source for your RAG pipeline.
+Retrieve top-k rows by player/team before sending context to Groq.
+Never ask Groq to answer player-form questions without retrieval.
+Recommended metadata filters: Team, Position, Club, nationality.

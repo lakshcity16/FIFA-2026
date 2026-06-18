@@ -44,6 +44,56 @@ const ANALYTICS= load('data_analytics.json');
 const PERFORMERS=load('data_performers.json');
 const TEAM_MAP = load('team_map.json');
 
+// Load Grounding Master Dataset
+const GROUNDING_PLAYERS = (() => {
+  try {
+    const csvPath = path.join(__dirname, 'FIFA2026_Grounding_Master.csv');
+    if (!fs.existsSync(csvPath)) {
+      console.warn('FIFA2026_Grounding_Master.csv not found, RAG fallback active');
+      return [];
+    }
+    const raw = fs.readFileSync(csvPath, 'utf8').replace(/^\uFEFF/, '').replace(/\r/g, '');
+    const lines = raw.split('\n');
+    const headers = lines[0].split(',');
+    const idx = h => headers.indexOf(h);
+    
+    return lines.slice(1).filter(l => l.trim()).map(l => {
+      const v = [];
+      let current = '';
+      let inQuotes = false;
+      for(let i=0; i<l.length; i++){
+        if(l[i] === '"' && l[i+1] === '"') { current += '"'; i++; }
+        else if(l[i] === '"') { inQuotes = !inQuotes; }
+        else if(l[i] === ',' && !inQuotes) { v.push(current); current = ''; }
+        else { current += l[i]; }
+      }
+      v.push(current);
+      
+      return {
+        team: v[idx('Team')] || '',
+        number: v[idx('Number')] || '',
+        position: v[idx('Position')] || '',
+        name: v[idx('Player Name')] || '',
+        club: v[idx('Club')] || '',
+        caps: parseInt(v[idx('Caps')]) || 0,
+        goals: parseInt(v[idx('Goals')]) || 0,
+        age: parseInt(v[idx('age')]) || 0,
+        minutesPlayed: parseInt(v[idx('minutes_played_overall')]) || 0,
+        appearances: parseInt(v[idx('appearances_overall')]) || 0,
+        goalsOverall: parseInt(v[idx('goals_overall')]) || 0,
+        assistsOverall: parseInt(v[idx('assists_overall')]) || 0,
+        xg: parseFloat(v[idx('xg_per_90_overall')]) || 0,
+        rating: parseFloat(v[idx('average_rating_overall')]) || 0,
+        groundingScore: parseFloat(v[idx('grounding_score')]) || 0
+      };
+    }).filter(r => r.name && r.team);
+  } catch(e) {
+    console.error('Grounding CSV load error:', e.message);
+    return [];
+  }
+})();
+console.log(`Loaded ${GROUNDING_PLAYERS.length} players for grounding context`);
+
 // Verified real match scorelines, scorers, and stats for M001–M016 (June 11–15, 2026)
 const REAL_MATCH_DETAILS = {
   M001: {
@@ -405,7 +455,57 @@ const REAL_MATCH_DETAILS = {
       red_cards: { home: 0, away: 0 }
     }
   }
-};
+}; // End of REAL_MATCH_DETAILS
+
+// ── Daily Real-time Data Pipeline ──────────────────────────────
+async function runDailyDataPipeline() {
+  console.log('[Pipeline] Running daily data pipeline to update missing match stats...');
+  const nowStr = new Date().toISOString();
+  
+  for (const f of FIXTURES) {
+    const isPast = getMatchMinute(f.date + 'T' + f.time + ':00Z', nowStr) === 'FT';
+    if (isPast && !REAL_MATCH_DETAILS[f.id]) {
+      console.log(`[Pipeline] Fetching stats for missing match ${f.id} (${f.home} vs ${f.away})`);
+      const key = nextKey();
+      if (!key) continue;
+      
+      const prompt = `You are a real-time football data API. Generate a JSON response for the completed match ${f.home} vs ${f.away} in the FIFA World Cup 2026.
+Respond EXACTLY in this JSON format, nothing else:
+{
+  "home_score": integer,
+  "away_score": integer,
+  "scorers": [ { "team": "home"|"away", "name": "Player Name", "min": integer } ],
+  "stats": {
+    "possession": { "home": integer, "away": integer },
+    "shots": { "home": integer, "away": integer },
+    "shots_on_target": { "home": integer, "away": integer },
+    "passes": { "home": integer, "away": integer },
+    "pass_accuracy": { "home": integer, "away": integer },
+    "fouls": { "home": integer, "away": integer },
+    "yellow_cards": { "home": integer, "away": integer },
+    "red_cards": { "home": integer, "away": integer }
+  }
+}`;
+      try {
+        const r = await axios.post('https://api.groq.com/openai/v1/chat/completions',
+          { model: 'llama-3.1-8b-instant', messages: [{ role: 'user', content: prompt }], max_tokens: 300, temperature: 0.7, response_format: { type: "json_object" } },
+          { headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } }
+        );
+        const data = JSON.parse(r.data.choices[0].message.content);
+        REAL_MATCH_DETAILS[f.id] = data;
+        console.log(`[Pipeline] Updated ${f.id} stats successfully.`);
+      } catch (e) {
+        console.error(`[Pipeline] Failed to update ${f.id}:`, e.message);
+      }
+    }
+  }
+}
+
+// Run pipeline every 6 hours
+setInterval(runDailyDataPipeline, 6 * 60 * 60 * 1000);
+// Run once on startup after 5 seconds
+setTimeout(runDailyDataPipeline, 5000);
+
 
 // ── API-Football Background Sync ──────────────────────────────
 let apiWorldCupFixtures = [];
@@ -628,6 +728,83 @@ function findSquadPlayer(query) {
   if (bestMatch) return { ...bestMatch, team: bestTeam };
   
   return null;
+}
+
+// RAG context retrieval from Grounding Master Dataset
+function retrieveContext(query, simTime) {
+  if (!query) return '';
+  const cleanStr = str => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const queryClean = cleanStr(query);
+  const keywords = queryClean.split(/\s+/).filter(w => w.length > 2);
+  
+  if (keywords.length === 0) return '';
+  
+  const matches = [];
+  GROUNDING_PLAYERS.forEach(p => {
+    let score = 0;
+    const pName = cleanStr(p.name);
+    const pTeam = cleanStr(p.team);
+    const pClub = cleanStr(p.club);
+    
+    keywords.forEach(kw => {
+      if (pName.includes(kw)) score += 10;
+      if (pTeam.includes(kw)) score += 5;
+      if (pClub.includes(kw)) score += 3;
+    });
+    
+    if (score > 0) {
+      matches.push({ player: p, score });
+    }
+  });
+  
+  matches.sort((a, b) => b.score - a.score || b.player.groundingScore - a.player.groundingScore || b.player.rating - a.player.rating);
+  const topPlayers = matches.slice(0, 8).map(m => m.player);
+  
+  const teams = [...new Set(topPlayers.map(p => p.team))];
+  Object.keys(ANALYTICS).forEach(team => {
+    const tClean = cleanStr(team);
+    if (queryClean.includes(tClean) && !teams.includes(team)) {
+      teams.push(team);
+    }
+  });
+  
+  const { fixtures } = getTournamentState(simTime);
+  const relevantMatches = [];
+  if (teams.length > 0) {
+    fixtures.forEach(f => {
+      if (f.is_played && (teams.includes(f.home) || teams.includes(f.away))) {
+        relevantMatches.push(f);
+      }
+    });
+  }
+  relevantMatches.sort((a, b) => b.date.localeCompare(a.date));
+  const topMatches = relevantMatches.slice(0, 5);
+  
+  let context = "\n=== RETRIEVED GROUNDING CONTEXT ===\n";
+  if (topPlayers.length > 0) {
+    context += "#### Player Master Stats:\n";
+    topPlayers.forEach(p => {
+      context += `- **Player**: ${p.name} | **Team**: ${p.team} | **Pos**: ${p.position} | **Club**: ${p.club}\n`;
+      context += `  - Caps: ${p.caps} | Goals: ${p.goals} | Age: ${p.age}\n`;
+      context += `  - Overall Stats: Mins Played: ${p.minutesPlayed} | Apps: ${p.appearances} | Goals: ${p.goalsOverall} | Assists: ${p.assistsOverall} | xG/90: ${p.xg} | Rating: ${p.rating}\n`;
+    });
+  }
+  
+  if (topMatches.length > 0) {
+    context += "\n#### Recent Tournament Match Results:\n";
+    topMatches.forEach(m => {
+      const scorersStr = m.scorers && m.scorers.length > 0 
+        ? m.scorers.map(s => `${s.name} (${s.min}' for ${s.team === 'home' ? m.home : m.away})`).join(', ')
+        : 'None';
+      context += `- **Match ${m.id} (${m.stage})**: ${m.home} ${m.home_score} - ${m.away_score} ${m.away} (Status: ${m.status}, Date: ${m.date})\n`;
+      context += `  - Scorers: ${scorersStr}\n`;
+      if (m.stats) {
+        context += `  - Stats: Possession: ${m.stats.possession[0]}%-${m.stats.possession[1]}% | Shots: ${m.stats.shots[0]}-${m.stats.shots[1]}\n`;
+      }
+    });
+  }
+  context += "===================================\n";
+  return context;
 }
 
 // Index fixtures by team for fast lookup
@@ -1175,24 +1352,24 @@ app.get('/api/journey/:team', (req, res) => {
   allThirds.sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf || x.team.localeCompare(y.team));
   const bestThirds = allThirds.slice(0, 8).map(t => t.team);
 
-  // 3. Define Round of 32 match schedules
+  // 3. Define Round of 32 match schedules (Aligned with bracket.pdf)
   const r32Schedules = [
-    { id: 'R32_01', date: 'June 29', stadium: 'Gillette Stadium', city: 'Foxborough', home: groupWinners['A'], away: bestThirds[0] },
-    { id: 'R32_02', date: 'June 30', stadium: 'MetLife Stadium', city: 'E Rutherford', home: groupRunners['B'], away: groupRunners['F'] },
-    { id: 'R32_03', date: 'June 28', stadium: 'SoFi Stadium', city: 'Inglewood', home: groupWinners['C'], away: bestThirds[1] },
-    { id: 'R32_04', date: 'June 29', stadium: 'Estadio BBVA', city: 'Guadalupe', home: groupRunners['D'], away: groupRunners['H'] },
-    { id: 'R32_05', date: 'July 2', stadium: 'BMO Field', city: 'Toronto', home: groupWinners['E'], away: bestThirds[2] },
-    { id: 'R32_06', date: 'July 2', stadium: 'SoFi Stadium', city: 'Inglewood', home: groupRunners['J'], away: groupRunners['A'] },
-    { id: 'R32_07', date: 'July 1', stadium: 'Levi\'s Stadium', city: 'Santa Clara', home: groupWinners['G'], away: bestThirds[3] },
-    { id: 'R32_08', date: 'July 1', stadium: 'Lumen Field', city: 'Seattle', home: groupRunners['L'], away: groupRunners['C'] },
-    { id: 'R32_09', date: 'June 29', stadium: 'NRG Stadium', city: 'Houston', home: groupWinners['I'], away: bestThirds[4] },
-    { id: 'R32_10', date: 'June 30', stadium: 'AT&T Stadium', city: 'Arlington', home: groupWinners['K'], away: bestThirds[5] },
-    { id: 'R32_11', date: 'June 30', stadium: 'Estadio Azteca', city: 'Mexico City', home: groupRunners['E'], away: groupRunners['I'] },
-    { id: 'R32_12', date: 'July 1', stadium: 'Mercedes-Benz Stadium', city: 'Atlanta', home: groupWinners['B'], away: bestThirds[6] },
-    { id: 'R32_13', date: 'July 3', stadium: 'Hard Rock Stadium', city: 'Miami Gardens', home: groupRunners['G'], away: groupRunners['K'] },
-    { id: 'R32_14', date: 'July 3', stadium: 'AT&T Stadium', city: 'Arlington', home: groupWinners['D'], away: bestThirds[7] },
-    { id: 'R32_15', date: 'July 2', stadium: 'BC Place', city: 'Vancouver', home: groupWinners['H'], away: groupWinners['F'] },
-    { id: 'R32_16', date: 'July 3', stadium: 'Arrowhead Stadium', city: 'Kansas City', home: groupWinners['J'], away: groupWinners['L'] }
+    { id: 'R32_01', date: 'June 30', stadium: 'Gillette Stadium', city: 'Foxborough', home: groupWinners['E'], away: bestThirds[0] }, // Match 1
+    { id: 'R32_02', date: 'July 1', stadium: 'Mercedes-Benz Stadium', city: 'Atlanta', home: groupWinners['I'], away: bestThirds[1] }, // Match 2
+    { id: 'R32_03', date: 'June 29', stadium: 'SoFi Stadium', city: 'Inglewood', home: groupRunners['A'], away: groupRunners['B'] }, // Match 3
+    { id: 'R32_04', date: 'June 30', stadium: 'Estadio Azteca', city: 'Mexico City', home: groupWinners['F'], away: groupRunners['C'] }, // Match 4
+    { id: 'R32_05', date: 'July 3', stadium: 'BMO Field', city: 'Toronto', home: groupRunners['K'], away: groupRunners['L'] }, // Match 5
+    { id: 'R32_06', date: 'July 3', stadium: 'Lumen Field', city: 'Seattle', home: groupWinners['H'], away: groupRunners['J'] }, // Match 6
+    { id: 'R32_07', date: 'July 2', stadium: 'NRG Stadium', city: 'Houston', home: groupWinners['D'], away: bestThirds[2] }, // Match 7
+    { id: 'R32_08', date: 'July 2', stadium: 'Levi\'s Stadium', city: 'Santa Clara', home: groupWinners['G'], away: bestThirds[3] }, // Match 8
+    { id: 'R32_09', date: 'June 29', stadium: 'MetLife Stadium', city: 'E Rutherford', home: groupWinners['C'], away: groupRunners['F'] }, // Match 9
+    { id: 'R32_10', date: 'June 30', stadium: 'AT&T Stadium', city: 'Arlington', home: groupRunners['E'], away: groupRunners['I'] }, // Match 10
+    { id: 'R32_11', date: 'July 1', stadium: 'Mercedes-Benz Stadium', city: 'Atlanta', home: groupWinners['A'], away: bestThirds[4] }, // Match 11
+    { id: 'R32_12', date: 'July 1', stadium: 'BC Place', city: 'Vancouver', home: groupWinners['L'], away: bestThirds[5] }, // Match 12
+    { id: 'R32_13', date: 'July 4', stadium: 'Hard Rock Stadium', city: 'Miami Gardens', home: groupWinners['J'], away: groupRunners['H'] }, // Match 13
+    { id: 'R32_14', date: 'July 3', stadium: 'Arrowhead Stadium', city: 'Kansas City', home: groupRunners['D'], away: groupRunners['G'] }, // Match 14
+    { id: 'R32_15', date: 'July 3', stadium: 'AT&T Stadium', city: 'Arlington', home: groupWinners['B'], away: bestThirds[6] }, // Match 15
+    { id: 'R32_16', date: 'July 4', stadium: 'SoFi Stadium', city: 'Inglewood', home: groupWinners['K'], away: bestThirds[7] } // Match 16
   ];
 
   const isTeamInR32 = r32Schedules.some(m => m.home === name || m.away === name);
@@ -1245,35 +1422,35 @@ app.get('/api/journey/:team', (req, res) => {
   const r32Results = r32Schedules.map(m => simKnockout(m.home, m.away, m.id, 'Round of 32', m.date, m.stadium, m.city));
 
   const r16Schedules = [
-    { id: 'R16_01', date: 'July 4', stadium: 'Lincoln Financial Field', city: 'Philadelphia', home: r32Results[0].winner, away: r32Results[1].winner },
-    { id: 'R16_02', date: 'July 4', stadium: 'NRG Stadium', city: 'Houston', home: r32Results[2].winner, away: r32Results[3].winner },
-    { id: 'R16_03', date: 'July 6', stadium: 'AT&T Stadium', city: 'Arlington', home: r32Results[4].winner, away: r32Results[5].winner },
-    { id: 'R16_04', date: 'July 6', stadium: 'Lumen Field', city: 'Seattle', home: r32Results[6].winner, away: r32Results[7].winner },
-    { id: 'R16_05', date: 'July 5', stadium: 'MetLife Stadium', city: 'E Rutherford', home: r32Results[8].winner, away: r32Results[9].winner },
-    { id: 'R16_06', date: 'July 5', stadium: 'Estadio Azteca', city: 'Mexico City', home: r32Results[10].winner, away: r32Results[11].winner },
-    { id: 'R16_07', date: 'July 7', stadium: 'Mercedes-Benz Stadium', city: 'Atlanta', home: r32Results[12].winner, away: r32Results[13].winner },
-    { id: 'R16_08', date: 'July 7', stadium: 'BC Place', city: 'Vancouver', home: r32Results[14].winner, away: r32Results[15].winner }
+    { id: 'R16_01', date: 'July 4', stadium: 'Lincoln Financial Field', city: 'Philadelphia', home: r32Results[2].winner, away: r32Results[3].winner },
+    { id: 'R16_02', date: 'July 5', stadium: 'NRG Stadium', city: 'Houston', home: r32Results[0].winner, away: r32Results[1].winner },
+    { id: 'R16_03', date: 'July 6', stadium: 'MetLife Stadium', city: 'E Rutherford', home: r32Results[8].winner, away: r32Results[9].winner },
+    { id: 'R16_04', date: 'July 6', stadium: 'Lumen Field', city: 'Seattle', home: r32Results[10].winner, away: r32Results[11].winner },
+    { id: 'R16_05', date: 'July 7', stadium: 'AT&T Stadium', city: 'Arlington', home: r32Results[7].winner, away: r32Results[6].winner },
+    { id: 'R16_06', date: 'July 7', stadium: 'Mercedes-Benz Stadium', city: 'Atlanta', home: r32Results[4].winner, away: r32Results[5].winner },
+    { id: 'R16_07', date: 'July 8', stadium: 'Hard Rock Stadium', city: 'Miami Gardens', home: r32Results[15].winner, away: r32Results[14].winner },
+    { id: 'R16_08', date: 'July 7', stadium: 'BC Place', city: 'Vancouver', home: r32Results[12].winner, away: r32Results[13].winner }
   ];
   const r16Results = r16Schedules.map(m => simKnockout(m.home, m.away, m.id, 'Round of 16', m.date, m.stadium, m.city));
 
   const qfSchedules = [
-    { id: 'QF_01', date: 'July 9', stadium: 'Gillette Stadium', city: 'Foxborough', home: r16Results[0].winner, away: r16Results[1].winner },
-    { id: 'QF_02', date: 'July 10', stadium: 'SoFi Stadium', city: 'Inglewood', home: r16Results[2].winner, away: r16Results[3].winner },
-    { id: 'QF_03', date: 'July 11', stadium: 'Hard Rock Stadium', city: 'Miami Gardens', home: r16Results[4].winner, away: r16Results[5].winner },
-    { id: 'QF_04', date: 'July 11', stadium: 'Arrowhead Stadium', city: 'Kansas City', home: r16Results[6].winner, away: r16Results[7].winner }
+    { id: 'QF_01', date: 'July 10', stadium: 'SoFi Stadium', city: 'Inglewood', home: r16Results[1].winner, away: r16Results[0].winner },
+    { id: 'QF_02', date: 'July 11', stadium: 'Hard Rock Stadium', city: 'Miami Gardens', home: r16Results[5].winner, away: r16Results[4].winner },
+    { id: 'QF_03', date: 'July 12', stadium: 'AT&T Stadium', city: 'Arlington', home: r16Results[2].winner, away: r16Results[3].winner },
+    { id: 'QF_04', date: 'July 12', stadium: 'BC Place', city: 'Vancouver', home: r16Results[6].winner, away: r16Results[7].winner }
   ];
   const qfResults = qfSchedules.map(m => simKnockout(m.home, m.away, m.id, 'Quarter Final', m.date, m.stadium, m.city));
 
   const sfSchedules = [
-    { id: 'SF_01', date: 'July 14', stadium: 'AT&T Stadium', city: 'Arlington', home: qfResults[0].winner, away: qfResults[1].winner },
-    { id: 'SF_02', date: 'July 15', stadium: 'Mercedes-Benz Stadium', city: 'Atlanta', home: qfResults[2].winner, away: qfResults[3].winner }
+    { id: 'SF_01', date: 'July 15', stadium: 'Mercedes-Benz Stadium', city: 'Atlanta', home: qfResults[0].winner, away: qfResults[1].winner },
+    { id: 'SF_02', date: 'July 16', stadium: 'MetLife Stadium', city: 'E Rutherford', home: qfResults[2].winner, away: qfResults[3].winner }
   ];
   const sfResults = sfSchedules.map(m => simKnockout(m.home, m.away, m.id, 'Semi Final', m.date, m.stadium, m.city));
 
   const thirdPlaceSchedule = { id: 'TP_01', date: 'July 18', stadium: 'Hard Rock Stadium', city: 'Miami Gardens', home: sfResults[0].winner === sfResults[0].home ? sfResults[0].away : sfResults[0].home, away: sfResults[1].winner === sfResults[1].home ? sfResults[1].away : sfResults[1].home };
   const thirdPlaceResult = simKnockout(thirdPlaceSchedule.home, thirdPlaceSchedule.away, thirdPlaceSchedule.id, '3rd Place Match', thirdPlaceSchedule.date, thirdPlaceSchedule.stadium, thirdPlaceSchedule.city);
 
-  const finalSchedule = { id: 'FIN_01', date: 'July 19', stadium: 'MetLife Stadium', city: 'E Rutherford', home: sfResults[0].winner, away: sfResults[1].winner };
+  const finalSchedule = { id: 'FIN_01', date: 'July 20', stadium: 'MetLife Stadium', city: 'E Rutherford', home: sfResults[0].winner, away: sfResults[1].winner };
   const finalResult = simKnockout(finalSchedule.home, finalSchedule.away, finalSchedule.id, 'World Cup Final', finalSchedule.date, finalSchedule.stadium, finalSchedule.city);
 
   const ko = {};
@@ -1339,13 +1516,16 @@ app.post('/api/ai/analyze', async (req, res) => {
   const { player, opponent } = req.body;
   if (!player || !opponent) return res.status(400).json({ error: 'player and opponent required' });
 
+  const simTime = req.body.simulated_time || req.query.simulated_time || new Date().toISOString();
   const playerData = findSquadPlayer(player);
-
   const oppAnalytics = ANALYTICS[opponent] || {};
   const key = nextKey();
   if (!key) return res.status(500).json({ error: 'No Groq API keys available' });
 
+  const groundingContext = retrieveContext(`${player} ${opponent}`, simTime);
+
   const prompt = `You are a world-class football analyst covering FIFA World Cup 2026.
+You are operating in the year 2026.
 
 PLAYER: ${player}${playerData ? `
 - Team: ${playerData.team} | Position: ${playerData.position} | Age: ${playerData.age}
@@ -1356,6 +1536,14 @@ OPPONENT: ${opponent}${oppAnalytics.overall_rating ? `
 - Avg Rating: ${oppAnalytics.overall_rating} | Group: ${oppAnalytics.group}
 - Offense: ${oppAnalytics.offense}/100 | Defense: ${oppAnalytics.defense}/100
 - Passing: ${oppAnalytics.passing}% | Creativity: ${oppAnalytics.creativity}/100` : ''}
+
+${groundingContext}
+
+CRITICAL GROUNDING INSTRUCTIONS:
+Answer the matchup query ONLY using the provided retrieved grounding context and player/opponent data.
+If the requested information is not available in the grounding context, say exactly:
+"Data not available in current knowledge base."
+Do not infer match results. Do not fabricate statistics or details that are not in the context.
 
 Write a 300-word expert matchup analysis covering:
 **1. Player Form & Style** — current tournament performance
@@ -1380,7 +1568,7 @@ Be specific, use the data provided, and sound like a Sky Sports analyst.`;
 // 9. Auction Pool — All valid players from real WC 2026 CSV data
 app.get('/api/auction/pool', (req, res) => {
   // Get all real players with valid minutes
-  const realPlayers = CSV_PLAYERS.filter(p => p.minutes >= 0);
+  const realPlayers = GROUNDING_PLAYERS.filter(p => typeof p.minutesPlayed === 'number' && p.minutesPlayed >= 0);
   
   const pool = [];
   const used = new Set();
@@ -1391,10 +1579,10 @@ app.get('/api/auction/pool', (req, res) => {
     
     // Assign generic position if not specific enough
     let slot = p.position;
-    if (p.position === 'Goalkeeper') slot = 'GK';
-    else if (p.position === 'Defender') slot = 'CB';
-    else if (p.position === 'Midfielder') slot = 'CM';
-    else if (p.position === 'Forward') slot = 'ST';
+    if (p.position === 'Goalkeeper' || p.position === 'GK') slot = 'GK';
+    else if (p.position === 'Defender' || p.position === 'DF') slot = 'CB';
+    else if (p.position === 'Midfielder' || p.position === 'MF') slot = 'CM';
+    else if (p.position === 'Forward' || p.position === 'FW') slot = 'ST';
     
     // Tier based on rating
     let tier = 'Good';
@@ -1681,10 +1869,19 @@ app.get('/api/match/:id', async (req, res) => {
   if (key) {
     try {
       const isUpcoming = match.status === 'upcoming';
+      const groundingContext = retrieveContext(`${match.home} ${match.away}`, simTime);
       const prompt = isUpcoming ? `You are a world-class football pundit and tactical analyst.
 Match: ${match.home} vs ${match.away} (Upcoming Match)
 - ${match.home} (FIFA Overall: ${hAnalytics.overall_rating}/10, Offense: ${hAnalytics.offense}/100, Defense: ${hAnalytics.defense}/100, Passing: ${hAnalytics.passing}%, Creativity: ${hAnalytics.creativity}/100)
 - ${match.away} (FIFA Overall: ${aAnalytics.overall_rating}/10, Offense: ${aAnalytics.offense}/100, Defense: ${aAnalytics.defense}/100, Passing: ${aAnalytics.passing}%, Creativity: ${aAnalytics.creativity}/100)
+
+${groundingContext}
+
+CRITICAL GROUNDING INSTRUCTIONS:
+Answer the query ONLY using the provided retrieved grounding context and team ratings.
+If the required information is not available in the grounding context, say exactly:
+"Data not available in current knowledge base."
+Do not infer match results. Do not fabricate statistics.
 
 Provide a premium match preview under 120 words.
 Structure clearly with bold headers:
@@ -1694,6 +1891,14 @@ Structure clearly with bold headers:
 Match: ${match.home} vs ${match.away}
 - ${match.home} (FIFA Overall: ${hAnalytics.overall_rating}/10, Offense: ${hAnalytics.offense}/100, Defense: ${hAnalytics.defense}/100, Passing: ${hAnalytics.passing}%, Creativity: ${hAnalytics.creativity}/100)
 - ${match.away} (FIFA Overall: ${aAnalytics.overall_rating}/10, Offense: ${aAnalytics.offense}/100, Defense: ${aAnalytics.defense}/100, Passing: ${aAnalytics.passing}%, Creativity: ${aAnalytics.creativity}/100)
+
+${groundingContext}
+
+CRITICAL GROUNDING INSTRUCTIONS:
+Answer the query ONLY using the provided retrieved grounding context and team ratings.
+If the required information is not available in the grounding context, say exactly:
+"Data not available in current knowledge base."
+Do not infer match results. Do not fabricate statistics.
 
 Provide a premium H2H tactical overview under 120 words.
 Structure clearly with bold headers:
@@ -1759,6 +1964,9 @@ app.post('/api/ai/chat', async (req, res) => {
   const key = nextKey();
   if (!key) return res.status(500).json({ error: 'No Groq API keys available' });
 
+  const simTime = req.body.simulated_time || req.query.simulated_time || new Date().toISOString();
+  const groundingContext = retrieveContext(message, simTime);
+
   // Generate a context of overall ratings for all teams for Llama 3
   const contextList = Object.entries(ANALYTICS).map(([team, data]) => {
     return `${team} (Rating: ${data.overall_rating}/10, Group: ${data.group}, Top Player: ${data.top_player})`;
@@ -1775,6 +1983,14 @@ Key Tactical Insights & Facts:
 - Dark Horses (Overall 7.2 - 8.2): Morocco (defensive transition speed), Uruguay (relentless high pressing under Bielsa), Croatia (midfield control), USA (young, athletic wingers), Senegal (physical strength).
 - Underdogs (Overall 5.0 - 6.8): Uzbekistan (UZB), Qatar (QAT), Haiti (HAI), South Africa (RSA). Specifically, Uzbekistan is renowned for its incredible defensive discipline, running a tight 5-4-1 low block and using quick direct counter-attacks, making them a very stubborn and dangerous opponent despite their low overall rating.
 - Official Matchball (FIFA 2026 Golden Glory): Uses a aerodynamic textured surface for stable drag, high speed spin stability, and true flight paths. It speeds up passing plays.
+
+${groundingContext}
+
+CRITICAL GROUNDING INSTRUCTIONS:
+Answer the user query ONLY using the provided retrieved grounding context and team list.
+If the requested information is not available in the grounding context, say exactly:
+"Data not available in current knowledge base."
+Do not infer match results. Do not fabricate statistics or details that are not in the context.
 
 Provide precise, analytical answers. Write in the style of a premium Sky Sports football pundit. Make your response highly detailed yet engaging and professional. Limit your response to 150-220 words.`;
 
@@ -1816,9 +2032,16 @@ app.get('/api/live-stats-ai/:matchId', async (req, res) => {
     return res.json({ stats, narrative: "AI offline.", commentary: ["Match is underway."] });
   }
 
+  const groundingContext = retrieveContext(`${match.home} ${match.away}`, simTime);
   const prompt = `You are a real-time football data API. Generate a JSON response for the match ${match.home} vs ${match.away} in the FIFA World Cup 2026 (Hosted in USA/Canada/Mexico). DO NOT mention the 2022 World Cup. Operate strictly in the year 2026.
 Current status: ${match.status} (Minute: ${match.minute || 'FT'}). Score: ${match.home} ${match.home_score} - ${match.away_score} ${match.away}.
 Stats: Possession ${stats.possession.home}%-${stats.possession.away}%, Shots ${stats.shots.home}-${stats.shots.away}.
+
+${groundingContext}
+
+CRITICAL GROUNDING INSTRUCTIONS:
+Describe key actions using the provided retrieved grounding context and stats.
+If key information is not in the context, do not fabricate statistics.
 
 Respond EXACTLY in this JSON format, nothing else:
 {

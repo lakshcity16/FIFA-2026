@@ -262,16 +262,23 @@ async function triggerTimeRefresh(fullRedraw = true) {
 function initNav() {
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
-      if (btn.dataset.tab !== 'auction' && _auctionTimer) {
-        clearInterval(_auctionTimer);
-        _auctionTimer = null;
+      try {
+        if (btn.dataset.tab !== 'auction' && typeof _auctionTimer !== 'undefined' && _auctionTimer) {
+          clearInterval(_auctionTimer);
+          _auctionTimer = null;
+        }
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        const targetTab = document.getElementById('tab-' + btn.dataset.tab);
+        if (targetTab) {
+          targetTab.classList.add('active');
+        }
+        
+        await triggerTimeRefresh(true);
+      } catch (err) {
+        console.error('Tab switch error:', err);
       }
-      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-      
-      await triggerTimeRefresh(true);
     });
   });
 }
@@ -1396,8 +1403,8 @@ const FORMATIONS = {
 
 function initAuction() {
   document.getElementById('start-auction-btn').addEventListener('click', startDraftAuction);
-  document.getElementById('draft-search').addEventListener('input', (e) => {
-    _draftSearchQuery = e.target.value;
+  document.getElementById('auction-search-apply').addEventListener('click', () => {
+    _draftSearchQuery = document.getElementById('draft-search').value;
     renderDraftPool();
   });
   document.getElementById('draft-position-filter').addEventListener('change', (e) => {
@@ -3075,22 +3082,22 @@ function generateBracket() {
   
   bracketState = {
     r32: [
-      { id: 'r32_1', home: get1('A'), away: thirds[0], winner: null },
-      { id: 'r32_2', home: get1('B'), away: thirds[1], winner: null },
-      { id: 'r32_3', home: get1('C'), away: get2('F'), winner: null },
-      { id: 'r32_4', home: get1('D'), away: thirds[2], winner: null },
-      { id: 'r32_5', home: get1('E'), away: thirds[3], winner: null },
-      { id: 'r32_6', home: get1('F'), away: get2('C'), winner: null },
-      { id: 'r32_7', home: get1('G'), away: thirds[4], winner: null },
-      { id: 'r32_8', home: get1('H'), away: get2('J'), winner: null },
-      { id: 'r32_9', home: get1('I'), away: thirds[5], winner: null },
-      { id: 'r32_10', home: get1('J'), away: get2('H'), winner: null },
-      { id: 'r32_11', home: get1('K'), away: thirds[6], winner: null },
-      { id: 'r32_12', home: get1('L'), away: thirds[7], winner: null },
-      { id: 'r32_13', home: get2('A'), away: get2('B'), winner: null },
-      { id: 'r32_14', home: get2('D'), away: get2('G'), winner: null },
-      { id: 'r32_15', home: get2('E'), away: get2('I'), winner: null },
-      { id: 'r32_16', home: get2('K'), away: get2('L'), winner: null },
+      { id: 'r32_1', home: get1('E'), away: thirds[0], winner: null }, // Match 1
+      { id: 'r32_2', home: get1('I'), away: thirds[1], winner: null }, // Match 2
+      { id: 'r32_3', home: get2('A'), away: get2('B'), winner: null }, // Match 3
+      { id: 'r32_4', home: get1('F'), away: get2('C'), winner: null }, // Match 4
+      { id: 'r32_5', home: get2('K'), away: get2('L'), winner: null }, // Match 5
+      { id: 'r32_6', home: get1('H'), away: get2('J'), winner: null }, // Match 6
+      { id: 'r32_7', home: get1('D'), away: thirds[2], winner: null }, // Match 7
+      { id: 'r32_8', home: get1('G'), away: thirds[3], winner: null }, // Match 8
+      { id: 'r32_9', home: get1('C'), away: get2('F'), winner: null }, // Match 9
+      { id: 'r32_10', home: get2('E'), away: get2('I'), winner: null }, // Match 10
+      { id: 'r32_11', home: get1('A'), away: thirds[4], winner: null }, // Match 11
+      { id: 'r32_12', home: get1('L'), away: thirds[5], winner: null }, // Match 12
+      { id: 'r32_13', home: get1('J'), away: get2('H'), winner: null }, // Match 13
+      { id: 'r32_14', home: get2('D'), away: get2('G'), winner: null }, // Match 14
+      { id: 'r32_15', home: get1('B'), away: thirds[6], winner: null }, // Match 15
+      { id: 'r32_16', home: get1('K'), away: thirds[7], winner: null }  // Match 16
     ],
     r16: Array.from({length: 8}).map((_, i) => ({ id: `r16_${i+1}`, home: 'TBD', away: 'TBD', winner: null })),
     qf: Array.from({length: 4}).map((_, i) => ({ id: `qf_${i+1}`, home: 'TBD', away: 'TBD', winner: null })),
@@ -3158,8 +3165,36 @@ window.advanceTeam = function(round, matchIdx, side, nextRound) {
   match.winner = match[side];
   
   if (nextRound) {
-    const nextMatchIdx = Math.floor(matchIdx / 2);
-    const nextSide = matchIdx % 2 === 0 ? 'home' : 'away';
+    let nextMatchIdx, nextSide;
+    if (round === 'r32') {
+      nextMatchIdx = Math.floor(matchIdx / 2);
+      nextSide = matchIdx % 2 === 0 ? 'home' : 'away';
+    } else if (round === 'r16') {
+      if (matchIdx === 0 || matchIdx === 1) {
+        nextMatchIdx = 0; // QF_1
+        nextSide = matchIdx === 1 ? 'home' : 'away';
+      } else if (matchIdx === 2 || matchIdx === 3) {
+        nextMatchIdx = 2; // QF_3
+        nextSide = matchIdx === 2 ? 'home' : 'away';
+      } else if (matchIdx === 4 || matchIdx === 5) {
+        nextMatchIdx = 1; // QF_2
+        nextSide = matchIdx === 5 ? 'home' : 'away';
+      } else if (matchIdx === 6 || matchIdx === 7) {
+        nextMatchIdx = 3; // QF_4
+        nextSide = matchIdx === 6 ? 'home' : 'away';
+      }
+    } else if (round === 'qf') {
+      if (matchIdx === 0 || matchIdx === 1) {
+        nextMatchIdx = 0; // SF_1
+        nextSide = matchIdx === 0 ? 'home' : 'away';
+      } else if (matchIdx === 2 || matchIdx === 3) {
+        nextMatchIdx = 1; // SF_2
+        nextSide = matchIdx === 2 ? 'home' : 'away';
+      }
+    } else if (round === 'sf') {
+      nextMatchIdx = 0; // Final
+      nextSide = matchIdx === 0 ? 'home' : 'away';
+    }
     
     if (nextRound === 'final') {
       bracketState.final[nextSide] = match.winner;
@@ -3173,8 +3208,19 @@ window.advanceTeam = function(round, matchIdx, side, nextRound) {
       let ci = nextMatchIdx;
       while (cr !== 'final') {
         const nr = cr === 'r16' ? 'qf' : cr === 'qf' ? 'sf' : 'final';
-        const ni = Math.floor(ci / 2);
-        const ns = ci % 2 === 0 ? 'home' : 'away';
+        let ni, ns;
+        if (cr === 'r16') {
+          if (ci === 0 || ci === 1) { ni = 0; ns = ci === 1 ? 'home' : 'away'; }
+          else if (ci === 2 || ci === 3) { ni = 2; ns = ci === 2 ? 'home' : 'away'; }
+          else if (ci === 4 || ci === 5) { ni = 1; ns = ci === 5 ? 'home' : 'away'; }
+          else if (ci === 6 || ci === 7) { ni = 3; ns = ci === 6 ? 'home' : 'away'; }
+        } else if (cr === 'qf') {
+          if (ci === 0 || ci === 1) { ni = 0; ns = ci === 0 ? 'home' : 'away'; }
+          else if (ci === 2 || ci === 3) { ni = 1; ns = ci === 2 ? 'home' : 'away'; }
+        } else if (cr === 'sf') {
+          ni = 0; ns = ci === 0 ? 'home' : 'away';
+        }
+        
         if (nr === 'final') {
           bracketState.final[ns] = 'TBD';
           bracketState.final.winner = null;
