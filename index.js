@@ -857,10 +857,20 @@ CSV_PLAYERS.forEach(p => {
 });
 
 // Global NLP-enhanced fuzzy search helper
+const findSquadPlayerCache = {};
 function findSquadPlayer(query) {
   if (!query) return null;
+  if (findSquadPlayerCache[query] !== undefined) {
+    return findSquadPlayerCache[query];
+  }
+
+  const cacheAndReturn = (val) => {
+    findSquadPlayerCache[query] = val;
+    return val;
+  };
+
   const queryKey = getNameKey(query);
-  if (!queryKey) return null;
+  if (!queryKey) return cacheAndReturn(null);
   const queryParts = queryKey.split(' ');
   
   // 1. Exact word-set match (original logic)
@@ -869,7 +879,7 @@ function findSquadPlayer(query) {
       const pKey = getNameKey(p.name);
       return queryParts.every(part => pKey.includes(part));
     });
-    if (found) return { ...found, team };
+    if (found) return cacheAndReturn({ ...found, team });
   }
   
   // 2. Substring match — "mba" matches "mbappe"
@@ -879,7 +889,7 @@ function findSquadPlayer(query) {
       const pNorm = p.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
       return pNorm.includes(queryNorm);
     });
-    if (found) return { ...found, team };
+    if (found) return cacheAndReturn({ ...found, team });
   }
   
   // 3. Levenshtein distance fallback for typo tolerance
@@ -910,9 +920,9 @@ function findSquadPlayer(query) {
       }
     }
   }
-  if (bestMatch) return { ...bestMatch, team: bestTeam };
+  if (bestMatch) return cacheAndReturn({ ...bestMatch, team: bestTeam });
   
-  return null;
+  return cacheAndReturn(null);
 }
 
 // RAG context retrieval from Grounding Master Dataset
