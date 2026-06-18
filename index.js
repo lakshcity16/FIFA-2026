@@ -99,8 +99,8 @@ const REAL_MATCH_DETAILS = {
   M001: {
     home_score: 2, away_score: 0,
     scorers: [
-      { team: 'home', name: 'Julián Quiñones', min: 9 },
-      { team: 'home', name: 'Raúl Jiménez', min: 67 }
+      { team: 'home', name: 'Julián Quiñones', min: 9, assist: 'Alexis Vega' },
+      { team: 'home', name: 'Raúl Jiménez', min: 67, assist: 'Hirving Lozano' }
     ],
     stats: {
       possession: { home: 55, away: 45 },
@@ -116,9 +116,9 @@ const REAL_MATCH_DETAILS = {
   M002: {
     home_score: 2, away_score: 1,
     scorers: [
-      { team: 'away', name: 'Ladislav Krejčí', min: 59 },
-      { team: 'home', name: 'Hwang In-beom', min: 67 },
-      { team: 'home', name: 'Oh Hyeon-gyu', min: 80 }
+      { team: 'away', name: 'Ladislav Krejčí', min: 59, assist: 'Antonín Barák' },
+      { team: 'home', name: 'Hwang In-beom', min: 67, assist: 'Son Heung-min' },
+      { team: 'home', name: 'Oh Hyeon-gyu', min: 80, assist: 'Lee Kang-in' }
     ],
     stats: {
       possession: { home: 52, away: 48 },
@@ -134,8 +134,8 @@ const REAL_MATCH_DETAILS = {
   M003: {
     home_score: 1, away_score: 1,
     scorers: [
-      { team: 'away', name: 'Jovo Lukić', min: 21 },
-      { team: 'home', name: 'Cyle Larin', min: 78 }
+      { team: 'away', name: 'Jovo Lukić', min: 21, assist: 'Ermedin Demirović' },
+      { team: 'home', name: 'Cyle Larin', min: 78, assist: 'Stephen Eustáquio' }
     ],
     stats: {
       possession: { home: 50, away: 50 },
@@ -442,7 +442,7 @@ const REAL_MATCH_DETAILS = {
   M020: {
     home_score: 1, away_score: 0,
     scorers: [
-      { team: 'home', name: 'Romano Schmid', min: 21 }
+      { team: 'home', name: 'Romano Schmid', min: 21, assist: 'Konrad Laimer' }
     ],
     stats: {
       possession: { home: 56, away: 44 },
@@ -452,6 +452,79 @@ const REAL_MATCH_DETAILS = {
       pass_accuracy: { home: 83, away: 74 },
       fouls: { home: 12, away: 14 },
       yellow_cards: { home: 2, away: 3 },
+      red_cards: { home: 0, away: 0 }
+    }
+  },
+  M021: {
+    home_score: 1, away_score: 0,
+    scorers: [
+      { team: 'home', name: 'Caleb Yirenkyi', min: 95, assist: 'Brandon Thomas-Asante' }
+    ],
+    stats: {
+      possession: { home: 39, away: 61 },
+      shots: { home: 8, away: 12 },
+      shots_on_target: { home: 3, away: 4 },
+      passes: { home: 310, away: 540 },
+      pass_accuracy: { home: 74, away: 86 },
+      fouls: { home: 14, away: 16 },
+      yellow_cards: { home: 2, away: 3 },
+      red_cards: { home: 0, away: 0 }
+    }
+  },
+  M022: {
+    home_score: 4, away_score: 2,
+    scorers: [
+      { team: 'home', name: 'Harry Kane', min: 12, assist: null },
+      { team: 'away', name: 'Martin Baturina', min: 36, assist: null },
+      { team: 'home', name: 'Harry Kane', min: 42, assist: 'Phil Foden' },
+      { team: 'away', name: 'Petar Musa', min: 45, assist: 'Ivan Perisic' },
+      { team: 'home', name: 'Jude Bellingham', min: 47, assist: null },
+      { team: 'home', name: 'Marcus Rashford', min: 85, assist: 'Jude Bellingham' }
+    ],
+    stats: {
+      possession: { home: 55, away: 45 },
+      shots: { home: 21, away: 10 },
+      shots_on_target: { home: 8, away: 4 },
+      passes: { home: 490, away: 390 },
+      pass_accuracy: { home: 85, away: 80 },
+      fouls: { home: 10, away: 12 },
+      yellow_cards: { home: 1, away: 2 },
+      red_cards: { home: 0, away: 0 }
+    }
+  },
+  M023: {
+    home_score: 1, away_score: 1,
+    scorers: [
+      { team: 'home', name: 'João Neves', min: 6, assist: 'Pedro Neto' },
+      { team: 'away', name: 'Yoane Wissa', min: 45, assist: null }
+    ],
+    stats: {
+      possession: { home: 75, away: 25 },
+      shots: { home: 16, away: 6 },
+      shots_on_target: { home: 6, away: 2 },
+      passes: { home: 680, away: 220 },
+      pass_accuracy: { home: 90, away: 68 },
+      fouls: { home: 11, away: 14 },
+      yellow_cards: { home: 2, away: 1 },
+      red_cards: { home: 0, away: 0 }
+    }
+  },
+  M024: {
+    home_score: 1, away_score: 3,
+    scorers: [
+      { team: 'away', name: 'Daniel Muñoz', min: 40, assist: null },
+      { team: 'home', name: 'Abbosbek Fayzullaev', min: 60, assist: null },
+      { team: 'away', name: 'Luis Díaz', min: 65, assist: null },
+      { team: 'away', name: 'Jaminton Campaz', min: 99, assist: 'Luis Díaz' }
+    ],
+    stats: {
+      possession: { home: 44, away: 56 },
+      shots: { home: 9, away: 15 },
+      shots_on_target: { home: 3, away: 6 },
+      passes: { home: 380, away: 480 },
+      pass_accuracy: { home: 78, away: 85 },
+      fouls: { home: 13, away: 11 },
+      yellow_cards: { home: 2, away: 1 },
       red_cards: { home: 0, away: 0 }
     }
   }

@@ -352,7 +352,7 @@ async function initOverview() {
     const selectedDate = dateInput.value;
     const todayStr = new Date().toISOString().split('T')[0];
     const isToday = selectedDate === todayStr;
-    const nextDt = isToday ? new Date() : new Date(`${selectedDate}T23:59:00Z`);
+    const nextDt = isToday ? new Date() : new Date(new Date(`${selectedDate}T23:59:00Z`).getTime() + 12 * 60 * 60 * 1000);
     
     _simulatedDate = nextDt;
     updateTimeMachineUI();
