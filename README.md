@@ -67,6 +67,12 @@ An advanced, enterprise-grade AI simulation platform and match manager for the u
 1. **Match Simulation**: When a match date is reached via the Time Machine, the background pipeline prompts the LLM with the fixture details. The LLM returns structured JSON containing scores, scorers, and stats.
 2. **AI Chat (RAG)**: User queries are matched against `FIFA2026_Grounding_Master.csv` using keyword and fuzzy-matching. The relevant context is injected into the prompt, grounding the LLM's responses in factual tournament data and player forms.
 
+## 🚀 Future Enhancements
+
+- **Multiplayer Draft Mode**: Allow friends to join the same lobby and draft against each other in real-time.
+- **Dynamic Player Morale**: Player forms shift dynamically based on match events and team momentum.
+- **Live Video Highlights Generation**: Integrating video generation APIs to showcase critical match moments.
+
 ## 📝 License
 
 This project is licensed under the MIT License.
