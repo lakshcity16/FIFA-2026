@@ -579,6 +579,118 @@ Respond EXACTLY in this JSON format, nothing else:
 // setInterval(runDailyDataPipeline, 6 * 60 * 60 * 1000);
 // setTimeout(runDailyDataPipeline, 5000);
 
+// ── OpenFootball Real-Time Data Pipeline ──────────────────────────
+let lastOpenFootballFetch = 0;
+
+async function syncOpenFootballData() {
+  const now = Date.now();
+  // 5 minutes cache limit to prevent rate-limiting and slow loads
+  if (now - lastOpenFootballFetch < 5 * 60 * 1000) {
+    return;
+  }
+  
+  try {
+    console.log('[Pipeline] Fetching latest World Cup 2026 scores from OpenFootball...');
+    const response = await axios.get('https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json', { timeout: 5000 });
+    const data = response.data || {};
+    const matches = data.matches || [];
+    
+    let updatedCount = 0;
+    matches.forEach(m => {
+      const homeNorm = normalizeTeamName(m.team1);
+      const awayNorm = normalizeTeamName(m.team2);
+      
+      const localFixture = FIXTURES.find(f => {
+        const fHomeNorm = normalizeTeamName(f.home);
+        const fAwayNorm = normalizeTeamName(f.away);
+        return (fHomeNorm === homeNorm && fAwayNorm === awayNorm);
+      });
+      
+      if (localFixture && m.score && m.score.ft) {
+        const homeScore = m.score.ft[0];
+        const awayScore = m.score.ft[1];
+        
+        const scorers = [];
+        
+        if (m.goals1) {
+          m.goals1.forEach(g => {
+            let min = parseInt(g.minute) || 90;
+            if (g.minute && g.minute.includes('+')) {
+              const parts = g.minute.split('+');
+              min = (parseInt(parts[0]) || 45) + (parseInt(parts[1]) || 0);
+            }
+            
+            let assist = null;
+            const existingMatch = REAL_MATCH_DETAILS[localFixture.id];
+            if (existingMatch && existingMatch.scorers) {
+              const existScorer = existingMatch.scorers.find(s => s.team === 'home' && s.name === g.name && s.min === min);
+              if (existScorer) assist = existScorer.assist;
+            }
+            if (!assist && !g.name.includes('(o.g.)')) {
+              assist = getFuzzySquadPlayer(localFixture.home, 'Midfielder') || null;
+            }
+            
+            scorers.push({ team: 'home', name: g.name, min, assist });
+          });
+        }
+        
+        if (m.goals2) {
+          m.goals2.forEach(g => {
+            let min = parseInt(g.minute) || 90;
+            if (g.minute && g.minute.includes('+')) {
+              const parts = g.minute.split('+');
+              min = (parseInt(parts[0]) || 45) + (parseInt(parts[1]) || 0);
+            }
+            
+            let assist = null;
+            const existingMatch = REAL_MATCH_DETAILS[localFixture.id];
+            if (existingMatch && existingMatch.scorers) {
+              const existScorer = existingMatch.scorers.find(s => s.team === 'away' && s.name === g.name && s.min === min);
+              if (existScorer) assist = existScorer.assist;
+            }
+            if (!assist && !g.name.includes('(o.g.)')) {
+              assist = getFuzzySquadPlayer(localFixture.away, 'Midfielder') || null;
+            }
+            
+            scorers.push({ team: 'away', name: g.name, min, assist });
+          });
+        }
+        
+        const statsObj = getMatchStats(localFixture.id, localFixture.home, localFixture.away, homeScore, awayScore);
+        
+        REAL_MATCH_DETAILS[localFixture.id] = {
+          home_score: homeScore,
+          away_score: awayScore,
+          scorers: scorers,
+          stats: {
+            possession: { home: statsObj.possession.home, away: statsObj.possession.away },
+            shots: { home: statsObj.shots.home, away: statsObj.shots.away },
+            shots_on_target: { home: statsObj.shots_on_target.home, away: statsObj.shots_on_target.away },
+            passes: { home: statsObj.passes.home, away: statsObj.passes.away },
+            pass_accuracy: { home: statsObj.pass_accuracy.home, away: statsObj.pass_accuracy.away },
+            fouls: { home: statsObj.fouls.home, away: statsObj.fouls.away },
+            yellow_cards: { home: statsObj.yellow_cards.home, away: statsObj.yellow_cards.away },
+            red_cards: { home: statsObj.red_cards.home, away: statsObj.red_cards.away }
+          }
+        };
+        
+        localFixture.home_score = homeScore;
+        localFixture.away_score = awayScore;
+        localFixture.is_played = true;
+        updatedCount++;
+      }
+    });
+    
+    lastOpenFootballFetch = now;
+    console.log(`[Pipeline] Successfully synced ${updatedCount} matches from OpenFootball.`);
+  } catch (err) {
+    console.error('[Pipeline] Failed to sync from OpenFootball:', err.message);
+  }
+}
+
+// Initial sync on startup
+syncOpenFootballData();
+
 
 // ── API-Football Background Sync ──────────────────────────────
 let apiWorldCupFixtures = [];
@@ -605,7 +717,7 @@ const API_TEAM_MAPPING = {
 
 function normalizeTeamName(name) {
   if (!name) return '';
-  const cleaned = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const cleaned = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/&/g, 'and').trim();
   return API_TEAM_MAPPING[cleaned] || cleaned;
 }
 
@@ -1274,7 +1386,8 @@ app.get('/api/teams', (req, res) => {
 });
 
 // 2. All 12 groups with live standings
-app.get('/api/groups', (req, res) => {
+app.get('/api/groups', async (req, res) => {
+  await syncOpenFootballData();
   const simTime = req.query.simulated_time || new Date().toISOString();
   const { groups } = getTournamentState(simTime);
   res.json({ groups });
@@ -1344,7 +1457,8 @@ app.get('/api/match/:id/highlights-redirect', async (req, res) => {
 });
 
 // 3. Single team full profile
-app.get('/api/team/:name', (req, res) => {
+app.get('/api/team/:name', async (req, res) => {
+  await syncOpenFootballData();
   const name = decodeURIComponent(req.params.name);
   const simTime = req.query.simulated_time || new Date().toISOString();
   const { fixtures: allFix, groups, playerStats } = getTournamentState(simTime);
@@ -1398,7 +1512,8 @@ app.get('/api/team/:name', (req, res) => {
 });
 
 // 4. All fixtures (with optional date filter)
-app.get('/api/fixtures', (req, res) => {
+app.get('/api/fixtures', async (req, res) => {
+  await syncOpenFootballData();
   const simTime = req.query.simulated_time || new Date().toISOString();
   console.log(`[API /api/fixtures] query simulated_time = ${req.query.simulated_time}, resolved simTime = ${simTime}`);
   const { fixtures } = getTournamentState(simTime);
@@ -1419,7 +1534,8 @@ app.get('/api/fixtures', (req, res) => {
 });
 
 // 5. Top performers (dynamic)
-app.get('/api/performers', (req, res) => {
+app.get('/api/performers', async (req, res) => {
+  await syncOpenFootballData();
   const simTime = req.query.simulated_time || new Date().toISOString();
   const { fixtures } = getTournamentState(simTime);
   
