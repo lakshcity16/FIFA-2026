@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -461,7 +462,10 @@
   <div id="predictor-phase-3" style="display:none;">
     <div class="panel-header" style="margin-bottom: 20px; display:flex; justify-content:space-between; align-items:center;">
       <h3>Phase 3: Knockout Bracket</h3>
-      <button class="btn-secondary" id="reset-bracket-btn">Reset All</button>
+      <div style="display:flex; gap:10px;">
+        <button class="btn-primary" id="download-bracket-btn" style="background: linear-gradient(135deg, var(--accent-2), var(--accent)); display: flex; align-items: center; gap: 6px; padding: 8px 16px; font-size: 13px; font-weight: 700; border-radius: 6px; cursor: pointer; border: none; color: #fff;">📸 Download Bracket</button>
+        <button class="btn-secondary" id="reset-bracket-btn">Reset All</button>
+      </div>
     </div>
     <p style="text-align:center; color:var(--accent-2); margin-bottom: 20px;">Click on a team in any active match to advance them to the next round.</p>
     

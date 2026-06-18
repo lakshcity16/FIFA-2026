@@ -3081,6 +3081,35 @@ function initPredictor() {
     document.getElementById('predictor-phase-3').style.display = 'none';
     document.getElementById('predictor-phase-1').style.display = 'block';
   });
+
+  const downloadBtn = document.getElementById('download-bracket-btn');
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', () => {
+      const container = document.querySelector('.bracket-container');
+      if (!container) return;
+      
+      const originalOverflowX = container.style.overflowX;
+      container.style.overflowX = 'visible';
+      
+      html2canvas(container, {
+        backgroundColor: '#0d1526',
+        scale: 2,
+        logging: false,
+        useCORS: true
+      }).then(canvas => {
+        container.style.overflowX = originalOverflowX;
+        
+        const link = document.createElement('a');
+        link.download = 'fifa-2026-bracket.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      }).catch(err => {
+        console.error('Bracket download error:', err);
+        alert('Failed to generate bracket image. Please try again.');
+        container.style.overflowX = originalOverflowX;
+      });
+    });
+  }
 }
 
 function generateBracket() {
