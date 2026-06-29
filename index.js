@@ -995,6 +995,7 @@ const CSV_PLAYERS = (() => {
       
       return {
         name: v[idx('Player Name')] || v[idx('Name on Shirt')],
+        shirt_name: v[idx('Name on Shirt')] || '',
         team: v[idx('Team')],
         position: v[idx('Position')],
         age: age,
@@ -1031,6 +1032,7 @@ CSV_PLAYERS.forEach(p => {
   
   SQUADS[p.team].push({
     name: p.name,
+    shirt_name: p.shirt_name || '',
     jersey: p.number,
     position: p.position === 'GK' ? 'Goalkeeper' : p.position === 'DF' ? 'Defender' : p.position === 'MF' ? 'Midfielder' : 'Forward',
     age: p.age,
@@ -1063,11 +1065,20 @@ function findSquadPlayer(query) {
     return val;
   };
 
+  const queryNorm = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
   const queryKey = getNameKey(query);
-  if (!queryKey) return cacheAndReturn(null);
   const queryParts = queryKey.split(' ');
   
-  // 1. Exact word-set match (original logic)
+  // 1. Exact shirt name match (e.g. "vitinha" matches "VITINHA")
+  for (const [team, squad] of Object.entries(SQUADS)) {
+    const found = squad.find(p => {
+      const sNorm = (p.shirt_name || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+      return sNorm === queryNorm;
+    });
+    if (found) return cacheAndReturn({ ...found, team });
+  }
+
+  // 2. Exact word-set match (original logic)
   for (const [team, squad] of Object.entries(SQUADS)) {
     const found = squad.find(p => {
       const pKey = getNameKey(p.name);
@@ -1076,8 +1087,7 @@ function findSquadPlayer(query) {
     if (found) return cacheAndReturn({ ...found, team });
   }
   
-  // 2. Substring match — "mba" matches "mbappe"
-  const queryNorm = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  // 3. Substring match — "mba" matches "mbappe"
   for (const [team, squad] of Object.entries(SQUADS)) {
     const found = squad.find(p => {
       const pNorm = p.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
