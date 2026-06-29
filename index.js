@@ -1377,6 +1377,42 @@ function getTournamentState(simTime) {
     return { ...f, ...dynamicData, highlights: `/api/match/${f.id}/highlights-redirect` };
   });
 
+  // Dynamically resolve knockout placeholders based on liveFixtures results
+  liveFixtures.forEach(f => {
+    if (f.stage !== 'group-stage') {
+      const resolveTeam = (teamName) => {
+        if (!teamName || (!teamName.startsWith('Winner Match ') && !teamName.startsWith('Loser Match '))) return teamName;
+        const isWinner = teamName.startsWith('Winner Match ');
+        const matchNum = parseInt(teamName.replace(/^(Winner|Loser) Match /, ''), 10);
+        if (isNaN(matchNum)) return teamName;
+        
+        const targetMatch = liveFixtures.find(m => m.match_number === matchNum);
+        if (targetMatch && targetMatch.status === 'finished') {
+          const hScore = targetMatch.home_score || 0;
+          const aScore = targetMatch.away_score || 0;
+          let winner = targetMatch.home;
+          let loser = targetMatch.away;
+          if (aScore > hScore) {
+            winner = targetMatch.away;
+            loser = targetMatch.home;
+          } else if (hScore === aScore) {
+            const hRating = (SQUADS[targetMatch.home] || [])[0]?.rating || 80;
+            const aRating = (SQUADS[targetMatch.away] || [])[0]?.rating || 80;
+            if (aRating > hRating) {
+              winner = targetMatch.away;
+              loser = targetMatch.home;
+            }
+          }
+          return isWinner ? winner : loser;
+        }
+        return teamName;
+      };
+
+      f.home = resolveTeam(f.home);
+      f.away = resolveTeam(f.away);
+    }
+  });
+
   // Calculate live group standings
   const liveGroups = {};
   liveFixtures.forEach(f => {
