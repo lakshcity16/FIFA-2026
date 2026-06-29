@@ -14,11 +14,13 @@
 </head>
 <body>
 <div class="bg-grid"></div>
-<div class="bg-orbs">
+<canvas id="bg-canvas"></canvas>
+<div class="bg-orbs" style="display: none;">
   <div class="orb orb-1"></div>
   <div class="orb orb-2"></div>
   <div class="orb orb-3"></div>
 </div>
+
 
 <!-- HEADER -->
 <header id="site-header">
@@ -422,8 +424,40 @@
 <!-- ═══════════════════════════════════════════════════════ -->
 <section id="tab-predictor" class="tab">
   <div class="page-title">
-    <h1>Manual Tournament Predictor</h1>
-    <p>Manually rank the groups and navigate the 48-team bracket</p>
+    <h1>Tournament Predictor & AI Simulator</h1>
+    <p>Simulate 10,000 runs via AI, or manually rank the groups and navigate the 48-team bracket</p>
+  </div>
+  
+  <!-- Monte Carlo Simulator Panel -->
+  <div class="panel" style="margin-bottom: 24px; border-color: rgba(245, 158, 11, 0.2); box-shadow: 0 4px 20px rgba(245, 158, 11, 0.05);">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+      <div>
+        <h3 style="color:var(--gold); margin-bottom:4px; font-weight:800; display:flex; align-items:center; gap:6px;">🏆 AI Monte Carlo Tournament Simulator</h3>
+        <p style="color:var(--text-2); font-size:12px; margin:0;">Run a 10,000-run simulation based on power ratings to forecast team probabilities.</p>
+      </div>
+      <button class="btn-primary" id="run-monte-carlo-btn" style="background: linear-gradient(135deg, var(--gold), var(--orange)); font-weight:900; color:#050811;">⚡ Run 10,000 Runs</button>
+    </div>
+    
+    <!-- Simulation progress UI -->
+    <div id="monte-carlo-progress-wrap" style="display:none; margin-top:16px;">
+      <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:6px;">
+        <span id="mc-progress-text" style="font-weight:700; color:var(--text-2);">Simulating: 0 / 10,000 runs</span>
+        <span id="mc-progress-percent" style="font-weight:800; color:var(--accent-2);">0%</span>
+      </div>
+      <div style="height:6px; background:rgba(255,255,255,0.05); border-radius:3px; overflow:hidden; border:1px solid var(--border);">
+        <div id="mc-progress-bar" style="width:0%; height:100%; background:linear-gradient(90deg, var(--accent-2), var(--accent-3)); transition:width 0.1s ease;"></div>
+      </div>
+    </div>
+    
+    <!-- Simulation Results chart & stats -->
+    <div id="monte-carlo-results" style="display:none; grid-template-columns: 1.2fr 1fr; gap:20px; margin-top:20px; align-items: start;">
+      <div style="height: 250px; position: relative;">
+        <canvas id="chart-monte-carlo"></canvas>
+      </div>
+      <div id="monte-carlo-stats" style="display:flex; flex-direction:column; gap:8px; max-height:250px; overflow-y:auto; padding-right:6px;">
+        <!-- Top teams table injected dynamically -->
+      </div>
+    </div>
   </div>
   
   <!-- Phase 1: Group Rankings -->

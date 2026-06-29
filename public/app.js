@@ -130,6 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* ══════════════════ INIT ══════════════════ */
 document.addEventListener('DOMContentLoaded', async () => {
+  initCanvasBackground();
   initTimeMachine();
   initThemes();
   initMatchball();
@@ -614,6 +615,7 @@ async function openMatchCenter(matchId) {
 
     <div class="match-modal-tabs" style="margin-top: 20px;">
       <button class="match-modal-tab active" id="tab-stats" onclick="switchMatchTab('stats')">Statistics</button>
+      <button class="match-modal-tab" id="tab-momentum" onclick="switchMatchTab('momentum')">Momentum & Timeline</button>
       <button class="match-modal-tab" id="tab-shotmap" style="border:1px solid #16a085; background:rgba(22, 160, 133, 0.1); color:#1abc9c;" onclick="switchMatchTab('shotmap', '${match.id}')">Live Shotmap (RapidAPI)</button>
     </div>
 
@@ -626,6 +628,22 @@ async function openMatchCenter(matchId) {
       ${statRow('Fouls committed', stats.fouls.home, stats.fouls.away)}
       ${statRow('Yellow Cards', stats.yellow_cards.home, stats.yellow_cards.away)}
       ${statRow('Red Cards', stats.red_cards.home, stats.red_cards.away)}
+    </div>
+
+    <div id="match-momentum-pane" style="display:none; position:relative; margin-top:20px; text-align:center;">
+      <div style="font-size:12px; font-weight:800; color:#fff; margin-bottom:12px; display:flex; align-items:center; gap:6px; justify-content:center;">
+        📈 Live Attack Momentum Timeline
+      </div>
+      <div style="height: 150px; position: relative; margin-bottom: 24px; border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: rgba(0,0,0,0.25);">
+        <canvas id="chart-match-momentum"></canvas>
+      </div>
+      
+      <div style="font-size:12px; font-weight:800; color:#fff; margin-bottom:12px; display:flex; align-items:center; gap:6px; justify-content:center;">
+        ⏱️ Match Event Timeline
+      </div>
+      <div id="match-timeline-list" style="display:flex; flex-direction:column; gap:8px; align-items:center; max-height:220px; overflow-y:auto; padding:10px 0; border: 1px solid var(--border); border-radius: 8px; background: rgba(0,0,0,0.15);">
+        <!-- Timeline items -->
+      </div>
     </div>
     
     <div id="match-shotmap-pane" style="display:none; position:relative; margin-top:20px; text-align:center;">
@@ -641,12 +659,21 @@ async function openMatchCenter(matchId) {
        </div>
     </div>
   `;
+
+  // Render momentum and event timeline graphics
+  setTimeout(() => {
+    renderMatchMomentum(match, stats);
+    renderMatchTimeline(match);
+  }, 100);
 }
 
 window.switchMatchTab = async function(tab, matchId) {
   document.getElementById('tab-stats').classList.toggle('active', tab === 'stats');
+  document.getElementById('tab-momentum').classList.toggle('active', tab === 'momentum');
   document.getElementById('tab-shotmap').classList.toggle('active', tab === 'shotmap');
+  
   document.getElementById('match-stats-pane').style.display = tab === 'stats' ? 'grid' : 'none';
+  document.getElementById('match-momentum-pane').style.display = tab === 'momentum' ? 'block' : 'none';
   document.getElementById('match-shotmap-pane').style.display = tab === 'shotmap' ? 'block' : 'none';
 
   if (tab === 'shotmap') {
@@ -1212,21 +1239,50 @@ async function runCompare() {
   const res = await $get('/api/compare?p1=' + encodeURIComponent(p1) + '&p2=' + encodeURIComponent(p2));
   if (res.error) { out.innerHTML = `<div style="grid-column:1/-1;color:var(--red)">${res.error}</div>`; return; }
 
-  const renderPlayer = (p) => {
+  const renderPlayerStatsList = (p) => {
     const posCode = p.position === 'Goalkeeper' ? 'GK' : p.position === 'Defender' ? 'DEF' : p.position === 'Midfielder' ? 'MID' : 'FWD';
     return `
-      <div class="cmp-player">
-        <h4>${p.name}</h4>
-        <div class="team">${p.team} · <span class="pos-badge pos-${posCode}">${posCode}</span></div>
+      <div class="cmp-player" style="background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:16px;">
+        <h4 style="font-size:16px; font-weight:800; color:#fff; margin-bottom:2px;">${p.name}</h4>
+        <div class="team" style="font-size:12px; color:var(--text-2); margin-bottom:12px;">${p.team} · <span class="pos-badge pos-${posCode}">${posCode}</span></div>
         ${[['Age', p.age||'-'],['Club', p.club||'-'],['Goals', p.goals],['Assists', p.assists],
            ['Minutes', p.minutes],['Rating', p.rating],['Height', (p.height||'-')+'cm'],
            ['Value', '€'+(p.value_m||0)+'M']].map(([l,v])=>`
-          <div class="cmp-stat"><span class="label">${l}</span><span class="val">${v}</span></div>
+          <div class="cmp-stat" style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:12px;"><span class="label" style="color:var(--text-2);">${l}</span><span class="val" style="font-weight:700; color:#fff;">${v}</span></div>
         `).join('')}
       </div>`;
   };
-  out.innerHTML = renderPlayer(res.player1) + '<div class="cmp-vs">VS</div>' + renderPlayer(res.player2);
-  
+
+  out.innerHTML = `
+    <div class="compare-container" style="grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 20px; align-items: start; width: 100%;">
+      ${renderPlayerStatsList(res.player1)}
+      
+      <!-- Visuals Card -->
+      <div style="background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 16px; align-items: center; justify-content: center; min-height: 420px;">
+        <div style="position: relative; width: 100%; height: 230px;">
+          <canvas id="cmp-radar-chart"></canvas>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; margin-top: 10px;">
+          <div style="text-align: center;">
+            <div style="font-size: 11px; color: var(--accent-2); margin-bottom: 4px; font-weight: 800; font-family: Outfit, sans-serif; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${res.player1.name.split(' ').pop()} Heatmap</div>
+            <canvas id="heatmap-p1" style="width: 100%; height: 110px; border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);"></canvas>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 11px; color: var(--accent-3); margin-bottom: 4px; font-weight: 800; font-family: Outfit, sans-serif; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${res.player2.name.split(' ').pop()} Heatmap</div>
+            <canvas id="heatmap-p2" style="width: 100%; height: 110px; border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);"></canvas>
+          </div>
+        </div>
+      </div>
+      
+      ${renderPlayerStatsList(res.player2)}
+    </div>
+  `;
+
+  // Draw comparison graphics
+  renderRadarChart(res.player1, res.player2);
+  drawPlayerHeatmap('heatmap-p1', res.player1.position);
+  drawPlayerHeatmap('heatmap-p2', res.player2.position);
+
   if (res.ai_comparison) {
     const aiDiv = document.createElement('div');
     aiDiv.style.gridColumn = '1 / -1';
@@ -1244,6 +1300,141 @@ async function runCompare() {
     `;
     out.appendChild(aiDiv);
   }
+}
+
+function renderRadarChart(p1, p2) {
+  const ctx = document.getElementById('cmp-radar-chart');
+  if (!ctx) return;
+  
+  const calculateStats = (p) => {
+    const isGK = p.position === 'Goalkeeper';
+    const isDEF = p.position === 'Defender';
+    const isMID = p.position === 'Midfielder';
+    const isFWD = p.position === 'Forward' || p.position === 'Winger' || p.position === 'Striker';
+    
+    const att = Math.min(100, Math.round((p.goals * 18) + (p.assists * 10) + (isFWD ? 50 : isMID ? 30 : 10)));
+    const pas = Math.min(100, Math.round((p.assists * 25) + (isMID ? 55 : isFWD ? 40 : 20)));
+    const def = Math.min(100, Math.round((isDEF ? 75 : isGK ? 85 : 30) + (p.rating * 1.5)));
+    const phy = Math.min(100, Math.round(((p.height || 180) - 150) * 1.5 + (p.age ? (35 - p.age) * 2 : 50)));
+    const pac = Math.min(100, Math.round(85 - (p.age ? (p.age - 20) * 1.5 : 0) + (isFWD ? 15 : 0)));
+    
+    return [att, pas, def, phy, pac];
+  };
+  
+  const stats1 = calculateStats(p1);
+  const stats2 = calculateStats(p2);
+  
+  if (chartRadar) chartRadar.destroy();
+  
+  chartRadar = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: ['Attacking', 'Passing', 'Defending', 'Physicality', 'Pace'],
+      datasets: [
+        {
+          label: p1.name.split(' ').pop(),
+          data: stats1,
+          backgroundColor: 'rgba(34, 211, 238, 0.2)',
+          borderColor: 'var(--accent-2)',
+          borderWidth: 2,
+          pointBackgroundColor: 'var(--accent-2)'
+        },
+        {
+          label: p2.name.split(' ').pop(),
+          data: stats2,
+          backgroundColor: 'rgba(167, 139, 250, 0.2)',
+          borderColor: 'var(--accent-3)',
+          borderWidth: 2,
+          pointBackgroundColor: 'var(--accent-3)'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: { color: '#fff', font: { family: 'Outfit', size: 10 } }
+        }
+      },
+      scales: {
+        r: {
+          angleLines: { color: 'rgba(255,255,255,0.08)' },
+          grid: { color: 'rgba(255,255,255,0.08)' },
+          pointLabels: { color: 'var(--text-2)', font: { family: 'Outfit', size: 9 } },
+          ticks: { display: false },
+          min: 0,
+          max: 100
+        }
+      }
+    }
+  });
+}
+
+function drawPlayerHeatmap(canvasId, position) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  canvas.width = 160;
+  canvas.height = 120;
+  
+  const w = canvas.width;
+  const h = canvas.height;
+  
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, w, h);
+  
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(5, 5, w - 10, h - 10);
+  
+  ctx.beginPath();
+  ctx.moveTo(w / 2, 5);
+  ctx.lineTo(w / 2, h - 5);
+  ctx.stroke();
+  
+  ctx.beginPath();
+  ctx.arc(w / 2, h / 2, 15, 0, Math.PI * 2);
+  ctx.stroke();
+  
+  ctx.strokeRect(5, h / 2 - 25, 20, 50);
+  ctx.strokeRect(w - 25, h / 2 - 25, 20, 50);
+  
+  const hotZones = [];
+  const addZone = (x, y, r, intensity) => hotZones.push({ x, y, r, intensity });
+  
+  if (position === 'Goalkeeper') {
+    addZone(15, h / 2, 18, 0.9);
+    addZone(22, h / 2 - 10, 12, 0.6);
+    addZone(22, h / 2 + 10, 12, 0.6);
+  } else if (position === 'Defender') {
+    addZone(30, h / 2, 22, 0.85);
+    addZone(45, h / 4, 18, 0.5);
+    addZone(45, (3 * h) / 4, 18, 0.5);
+    addZone(60, h / 2, 20, 0.4);
+  } else if (position === 'Midfielder') {
+    addZone(w / 2, h / 2, 25, 0.9);
+    addZone(w / 2 - 20, h / 2 - 15, 18, 0.6);
+    addZone(w / 2 + 20, h / 2 + 15, 18, 0.6);
+    addZone(w / 2 + 30, h / 2 - 10, 15, 0.55);
+  } else {
+    addZone(w - 20, h / 2, 20, 0.9);
+    addZone(w - 35, h / 4, 16, 0.7);
+    addZone(w - 35, (3 * h) / 4, 16, 0.7);
+    addZone(w / 2 + 20, h / 2, 20, 0.5);
+  }
+  
+  hotZones.forEach(z => {
+    ctx.beginPath();
+    const grad = ctx.createRadialGradient(z.x, z.y, 0, z.x, z.y, z.r);
+    grad.addColorStop(0, `rgba(239, 68, 68, ${z.intensity * 0.75})`);
+    grad.addColorStop(0.5, `rgba(245, 158, 11, ${z.intensity * 0.4})`);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2);
+    ctx.fill();
+  });
 }
 
 /* ══════════════════ TAB 5: DRAFT & SQUAD BUILDER ══════════════════ */
@@ -2791,6 +2982,97 @@ function renderDailyPerformers(fixtures) {
 }
 
 /* ══════════════════ PHASE 3 CORE INITIALIZATION FUNCTIONS ══════════════════ */
+let activeTheme = 'gold';
+function initCanvasBackground() {
+  const canvas = document.getElementById('bg-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  let width = canvas.width = window.innerWidth;
+  let height = canvas.height = window.innerHeight;
+  
+  window.addEventListener('resize', () => {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+  });
+  
+  const mouse = { x: null, y: null, radius: 150 };
+  window.addEventListener('mousemove', (e) => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+  });
+  window.addEventListener('mouseleave', () => {
+    mouse.x = null;
+    mouse.y = null;
+  });
+  
+  const themesColors = {
+    gold: ['rgba(217, 119, 6, 0.15)', 'rgba(245, 158, 11, 0.05)', 'rgba(251, 191, 36, 0.03)'],
+    cyber: ['rgba(236, 72, 153, 0.15)', 'rgba(6, 182, 212, 0.15)', 'rgba(167, 139, 250, 0.05)'],
+    samba: ['rgba(34, 197, 94, 0.15)', 'rgba(234, 179, 8, 0.12)', 'rgba(29, 78, 216, 0.08)'],
+    frost: ['rgba(14, 165, 233, 0.15)', 'rgba(255, 255, 255, 0.08)', 'rgba(56, 189, 248, 0.04)']
+  };
+  
+  class Particle {
+    constructor() {
+      this.x = Math.random() * width;
+      this.y = Math.random() * height;
+      this.radius = Math.random() * 80 + 40;
+      this.vx = (Math.random() - 0.5) * 0.8;
+      this.vy = (Math.random() - 0.5) * 0.8;
+      this.colorIndex = Math.floor(Math.random() * 3);
+    }
+    
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      
+      if (this.x - this.radius > width) this.x = -this.radius;
+      if (this.x + this.radius < 0) this.x = width + this.radius;
+      if (this.y - this.radius > height) this.y = -this.radius;
+      if (this.y + this.radius < 0) this.y = height + this.radius;
+      
+      if (mouse.x !== null && mouse.y !== null) {
+        const dx = this.x - mouse.x;
+        const dy = this.y - mouse.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < mouse.radius) {
+          const force = (mouse.radius - dist) / mouse.radius;
+          const angle = Math.atan2(dy, dx);
+          this.x += Math.cos(angle) * force * 3;
+          this.y += Math.sin(angle) * force * 3;
+        }
+      }
+    }
+    
+    draw() {
+      const colors = themesColors[activeTheme] || themesColors.gold;
+      const baseColor = colors[this.colorIndex];
+      
+      ctx.beginPath();
+      const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius);
+      grad.addColorStop(0, baseColor);
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  
+  const particles = Array.from({ length: 15 }, () => new Particle());
+  
+  function animate() {
+    ctx.clearRect(0, 0, width, height);
+    particles.forEach(p => {
+      p.update();
+      p.draw();
+    });
+    requestAnimationFrame(animate);
+  }
+  
+  animate();
+}
+
 function initThemes() {
   const dots = document.querySelectorAll('.theme-dot');
   dots.forEach(dot => {
@@ -2801,6 +3083,7 @@ function initThemes() {
       
       document.body.classList.remove('theme-gold', 'theme-cyber', 'theme-samba', 'theme-frost');
       document.body.classList.add('theme-' + theme);
+      activeTheme = theme;
     });
   });
   document.body.classList.add('theme-gold');
@@ -3104,6 +3387,273 @@ function initPredictor() {
       });
     });
   }
+
+  const mcBtn = document.getElementById('run-monte-carlo-btn');
+  if (mcBtn) {
+    mcBtn.addEventListener('click', runMonteCarlo);
+  }
+}
+
+let chartMonteCarlo = null;
+async function runMonteCarlo() {
+  const btn = document.getElementById('run-monte-carlo-btn');
+  const progressWrap = document.getElementById('monte-carlo-progress-wrap');
+  const progressBar = document.getElementById('mc-progress-bar');
+  const progressText = document.getElementById('mc-progress-text');
+  const progressPercent = document.getElementById('mc-progress-percent');
+  const resultsDiv = document.getElementById('monte-carlo-results');
+  const statsDiv = document.getElementById('monte-carlo-stats');
+  
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = 'Simulating...';
+  progressWrap.style.display = 'block';
+  resultsDiv.style.display = 'none';
+  
+  if (Object.keys(_analytics).length === 0) {
+    try {
+      const res = await fetch('/data_analytics.json').then(r => r.json());
+      _analytics = res || {};
+    } catch(e) {
+      console.error('Failed to load data_analytics.json', e);
+      btn.disabled = false;
+      btn.textContent = '⚡ Run 10,000 Runs';
+      alert('Failed to load team analytics data.');
+      return;
+    }
+  }
+  
+  const teamsList = _teams.map(t => t.name);
+  const getPower = (team) => {
+    const a = _analytics[team];
+    if (!a) return 0.5;
+    return (a.offense*0.3 + a.defense*0.25 + a.passing*0.2 + a.possession*0.15 + a.creativity*0.1) / 100;
+  };
+  
+  const stats = {};
+  teamsList.forEach(t => {
+    stats[t] = { r32: 0, r16: 0, qf: 0, sf: 0, final: 0, champion: 0 };
+  });
+  
+  const totalRuns = 10000;
+  let currentRun = 0;
+  
+  const groupsMap = {};
+  _teams.forEach(t => {
+    if (!groupsMap[t.group]) groupsMap[t.group] = [];
+    groupsMap[t.group].push(t.name);
+  });
+  
+  const groupNames = Object.keys(groupsMap);
+  
+  function simulateSingleTournament() {
+    const groupStandings = {};
+    
+    groupNames.forEach(g => {
+      const teams = groupsMap[g];
+      const pts = {};
+      const gd = {};
+      const gf = {};
+      teams.forEach(t => { pts[t] = 0; gd[t] = 0; gf[t] = 0; });
+      
+      for (let i = 0; i < teams.length; i++) {
+        for (let j = i + 1; j < teams.length; j++) {
+          const tA = teams[i];
+          const tB = teams[j];
+          const pA = getPower(tA);
+          const pB = getPower(tB);
+          
+          const gA = Math.max(0, Math.round(Math.random() * 2.5 + (pA - pB) * 1.5));
+          const gB = Math.max(0, Math.round(Math.random() * 2.5 + (pB - pA) * 1.5));
+          
+          gf[tA] += gA;
+          gf[tB] += gB;
+          gd[tA] += (gA - gB);
+          gd[tB] += (gB - gA);
+          
+          if (gA > gB) {
+            pts[tA] += 3;
+          } else if (gB > gA) {
+            pts[tB] += 3;
+          } else {
+            pts[tA] += 1;
+            pts[tB] += 1;
+          }
+        }
+      }
+      
+      const sorted = [...teams].sort((a, b) => {
+        return pts[b] - pts[a] || gd[b] - gd[a] || gf[b] - gf[a];
+      });
+      
+      groupStandings[g] = sorted;
+    });
+    
+    const advancing = [];
+    const thirdPlaces = [];
+    
+    groupNames.forEach(g => {
+      const standings = groupStandings[g];
+      advancing.push(standings[0]);
+      advancing.push(standings[1]);
+      thirdPlaces.push({ team: standings[2], pts: standings[2] ? 3 : 0, gd: 0, gf: 0 });
+    });
+    
+    thirdPlaces.sort((a, b) => getPower(b.team) - getPower(a.team));
+    for (let i = 0; i < 8; i++) {
+      if (thirdPlaces[i]) advancing.push(thirdPlaces[i].team);
+    }
+    
+    let r32Teams = advancing.filter(Boolean);
+    while (r32Teams.length < 32) {
+      r32Teams.push(teamsList[Math.floor(Math.random() * teamsList.length)]);
+    }
+    
+    r32Teams = r32Teams.sort(() => Math.random() - 0.5);
+    r32Teams.forEach(t => { if (stats[t]) stats[t].r32++; });
+    
+    let r16Teams = [];
+    for (let i = 0; i < 32; i += 2) {
+      const winner = simulateMatchWinner(r32Teams[i], r32Teams[i+1]);
+      r16Teams.push(winner);
+      if (stats[winner]) stats[winner].r16++;
+    }
+    
+    let qfTeams = [];
+    for (let i = 0; i < 16; i += 2) {
+      const winner = simulateMatchWinner(r16Teams[i], r16Teams[i+1]);
+      qfTeams.push(winner);
+      if (stats[winner]) stats[winner].qf++;
+    }
+    
+    let sfTeams = [];
+    for (let i = 0; i < 8; i += 2) {
+      const winner = simulateMatchWinner(qfTeams[i], qfTeams[i+1]);
+      sfTeams.push(winner);
+      if (stats[winner]) stats[winner].sf++;
+    }
+    
+    let finalTeams = [];
+    for (let i = 0; i < 4; i += 2) {
+      const winner = simulateMatchWinner(sfTeams[i], sfTeams[i+1]);
+      finalTeams.push(winner);
+      if (stats[winner]) stats[winner].final++;
+    }
+    
+    const champion = simulateMatchWinner(finalTeams[0], finalTeams[1]);
+    if (stats[champion]) stats[champion].champion++;
+  }
+  
+  function simulateMatchWinner(tA, tB) {
+    const pA = getPower(tA);
+    const pB = getPower(tB);
+    const total = pA + pB || 1;
+    return Math.random() < (pA / total) ? tA : tB;
+  }
+  
+  const chunkSize = 500;
+  function runChunk() {
+    const end = Math.min(totalRuns, currentRun + chunkSize);
+    for (let i = currentRun; i < end; i++) {
+      simulateSingleTournament();
+    }
+    currentRun = end;
+    
+    const pct = Math.round((currentRun / totalRuns) * 100);
+    progressBar.style.width = pct + '%';
+    progressText.textContent = `Simulating: ${currentRun.toLocaleString()} / 10,000 runs`;
+    progressPercent.textContent = pct + '%';
+    
+    if (currentRun < totalRuns) {
+      setTimeout(runChunk, 10);
+    } else {
+      finishSimulation();
+    }
+  }
+  
+  function finishSimulation() {
+    btn.disabled = false;
+    btn.textContent = '⚡ Run 10,000 Runs';
+    progressWrap.style.display = 'none';
+    resultsDiv.style.display = 'grid';
+    
+    const sortedTeams = Object.keys(stats).map(t => ({
+      name: t,
+      ...stats[t],
+      champProb: (stats[t].champion / totalRuns) * 100,
+      finalProb: (stats[t].final / totalRuns) * 100,
+      sfProb: (stats[t].sf / totalRuns) * 100
+    })).sort((a, b) => b.champion - a.champion);
+    
+    statsDiv.innerHTML = `
+      <table style="width:100%; border-collapse:collapse; font-size:12px; color:var(--text-1);">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border); text-align:left; color:var(--text-2); font-size:10px; text-transform:uppercase;">
+            <th style="padding:6px 0;">Team</th>
+            <th style="padding:6px 0; text-align:center;">Semi Final</th>
+            <th style="padding:6px 0; text-align:center;">Final</th>
+            <th style="padding:6px 0; text-align:right; color:var(--gold);">Winner</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sortedTeams.slice(0, 8).map(t => {
+            const flag = getFlagUrl(t.name);
+            return `
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+                <td style="padding:8px 0; font-weight:700; display:flex; align-items:center; gap:6px;">
+                  ${flag ? `<img src="${flag}" style="width:16px; height:11px; object-fit:cover; border-radius:1px;">` : ''}
+                  ${t.name}
+                </td>
+                <td style="padding:8px 0; text-align:center;">${t.sfProb.toFixed(1)}%</td>
+                <td style="padding:8px 0; text-align:center;">${t.finalProb.toFixed(1)}%</td>
+                <td style="padding:8px 0; text-align:right; font-weight:800; color:var(--gold);">${t.champProb.toFixed(1)}%</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+    
+    const canvas = document.getElementById('chart-monte-carlo');
+    const chartCtx = canvas.getContext('2d');
+    const chartData = sortedTeams.slice(0, 8);
+    
+    if (chartMonteCarlo) chartMonteCarlo.destroy();
+    
+    chartMonteCarlo = new Chart(chartCtx, {
+      type: 'bar',
+      data: {
+        labels: chartData.map(t => t.name),
+        datasets: [{
+          label: 'Championship Win Probability (%)',
+          data: chartData.map(t => t.champProb),
+          backgroundColor: 'rgba(245, 158, 11, 0.4)',
+          borderColor: 'var(--gold)',
+          borderWidth: 2,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: {
+            grid: { color: 'rgba(255,255,255,0.05)' },
+            ticks: { color: 'var(--text-2)', font: { family: 'Outfit', size: 9 } }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { color: 'var(--text-2)', font: { family: 'Outfit', size: 9 } }
+          }
+        }
+      }
+    });
+  }
+  
+  runChunk();
 }
 
 function generateBracket() {
@@ -3268,3 +3818,149 @@ window.advanceTeam = function(round, matchIdx, side, nextRound) {
   
   renderBracket();
 };
+
+let chartMatchMomentum = null;
+function renderMatchMomentum(match, stats) {
+  const canvas = document.getElementById('chart-match-momentum');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  const labels = Array.from({ length: 90 }, (_, i) => i + 1);
+  const data = [];
+  let currentVal = 0;
+  
+  const homeGoalMins = match.scorers.filter(s => s.team === 'home').map(s => s.min);
+  const awayGoalMins = match.scorers.filter(s => s.team === 'away').map(s => s.min);
+  
+  for (let m = 1; m <= 90; m++) {
+    if (homeGoalMins.includes(m)) {
+      currentVal = 85;
+    } else if (awayGoalMins.includes(m)) {
+      currentVal = -85;
+    } else {
+      const bias = (stats.possession.home - stats.possession.away) * 0.4;
+      currentVal = currentVal * 0.7 + (Math.random() - 0.5) * 25 + bias * 0.3;
+      currentVal = Math.max(-50, Math.min(50, currentVal));
+    }
+    data.push(Math.round(currentVal));
+  }
+  
+  if (chartMatchMomentum) chartMatchMomentum.destroy();
+  
+  chartMatchMomentum = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Match Momentum',
+        data: data,
+        borderColor: 'var(--accent-2)',
+        borderWidth: 2,
+        fill: true,
+        backgroundColor: (context) => {
+          const chart = context.chart;
+          const { ctx: chartCtx, chartArea } = chart;
+          if (!chartArea) return null;
+          
+          const gradient = chartCtx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+          gradient.addColorStop(0, 'rgba(34, 211, 238, 0.25)');
+          gradient.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
+          gradient.addColorStop(1, 'rgba(167, 139, 250, 0.25)');
+          return gradient;
+        },
+        tension: 0.4,
+        pointRadius: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: {
+          min: -100,
+          max: 100,
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: {
+            callback: (val) => val === 75 ? 'Home Attack' : val === -75 ? 'Away Attack' : '',
+            color: 'var(--text-2)',
+            font: { family: 'Outfit', size: 9, weight: 'bold' }
+          }
+        },
+        x: {
+          grid: { display: false },
+          ticks: {
+            callback: (val) => val % 15 === 0 ? val + '\'' : '',
+            color: 'var(--text-2)',
+            font: { family: 'Outfit', size: 9 }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderMatchTimeline(match) {
+  const container = document.getElementById('match-timeline-list');
+  if (!container) return;
+  
+  const events = [];
+  match.scorers.forEach(s => {
+    events.push({
+      min: s.min,
+      team: s.team,
+      type: 'goal',
+      title: 'Goal!',
+      desc: `<strong>${s.name}</strong>${s.assist ? ` (assist: ${s.assist})` : ''}`
+    });
+  });
+  
+  const homeCards = Math.floor(Math.random() * 3);
+  const awayCards = Math.floor(Math.random() * 3);
+  
+  for(let i=0; i<homeCards; i++) {
+    events.push({
+      min: Math.floor(Math.random() * 80 + 10),
+      team: 'home',
+      type: 'card',
+      title: 'Yellow Card',
+      desc: 'Booking for defensive foul'
+    });
+  }
+  for(let i=0; i<awayCards; i++) {
+    events.push({
+      min: Math.floor(Math.random() * 80 + 10),
+      team: 'away',
+      type: 'card',
+      title: 'Yellow Card',
+      desc: 'Booking for late tackle'
+    });
+  }
+  
+  events.sort((a, b) => a.min - b.min);
+  
+  if (events.length === 0) {
+    container.innerHTML = '<span style="font-size:11px; color:var(--text-2);">No match events recorded.</span>';
+    return;
+  }
+  
+  container.innerHTML = events.map(ev => {
+    const isHome = ev.team === 'home';
+    const alignStyle = isHome ? 'flex-direction:row;' : 'flex-direction:row-reverse;';
+    const textStyle = isHome ? 'text-align:left;' : 'text-align:right;';
+    const icon = ev.type === 'goal' ? '⚽' : '🟨';
+    
+    return `
+      <div style="display:flex; width:100%; max-width:480px; align-items:center; gap:16px; font-size:12px; ${alignStyle}">
+        <div style="width: 40px; font-weight:800; color:var(--accent-2); text-align:center; background:rgba(255,255,255,0.03); padding:4px 8px; border-radius:4px;">${ev.min}'</div>
+        <div style="font-size:14px;">${icon}</div>
+        <div style="flex:1; ${textStyle}">
+          <div style="font-weight:700; color:#fff;">${ev.title}</div>
+          <div style="color:var(--text-2); font-size:11px;">${ev.desc}</div>
+        </div>
+      </div>
+    `;
+  }).join('<div style="width:2px; height:12px; background:var(--border);"></div>');
+}

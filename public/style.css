@@ -33,6 +33,14 @@ body{background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;p
     linear-gradient(90deg, rgba(59,130,246,.04) 1px, transparent 1px);
   background-size:50px 50px;
 }
+#bg-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  width: 100vw;
+  height: 100vh;
+}
 .bg-orbs{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
 .orb{position:absolute;border-radius:50%;filter:blur(120px);opacity:.25;animation:drift 18s ease-in-out infinite alternate}
 .orb-1{width:600px;height:600px;background:radial-gradient(circle,#3b82f6,transparent);top:-150px;left:-200px}
