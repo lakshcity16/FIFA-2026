@@ -2871,6 +2871,43 @@ function initChatbot() {
     });
   }
 
+  // Speech Recognition (Voice assistant)
+  const voiceBtn = document.getElementById('chat-voice-btn');
+  if (voiceBtn && inputEl) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      
+      voiceBtn.addEventListener('click', () => {
+        voiceBtn.style.background = 'var(--red)';
+        voiceBtn.textContent = '🎙️';
+        recognition.start();
+      });
+      
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        inputEl.value = transcript;
+        voiceBtn.style.background = 'var(--surface-2)';
+        voiceBtn.textContent = '🎤';
+      };
+      
+      recognition.onerror = () => {
+        voiceBtn.style.background = 'var(--surface-2)';
+        voiceBtn.textContent = '🎤';
+      };
+      
+      recognition.onend = () => {
+        voiceBtn.style.background = 'var(--surface-2)';
+        voiceBtn.textContent = '🎤';
+      };
+    } else {
+      voiceBtn.style.display = 'none';
+    }
+  }
+
   // Suggestions chips click handling
   const chips = document.querySelectorAll('.chat-chip');
   chips.forEach(chip => {
@@ -2892,21 +2929,18 @@ async function sendChatMessage() {
   const text = inputEl.value.trim();
   if (!text) return;
   
-  // Clear input
   inputEl.value = '';
   
-  // Append User message
   const userMsg = document.createElement('div');
   userMsg.className = 'chat-msg user';
   userMsg.innerHTML = `<div class="chat-bubble user">${text}</div>`;
   logEl.appendChild(userMsg);
   logEl.scrollTop = logEl.scrollHeight;
   
-  // Append Typing bubble
   const typingMsg = document.createElement('div');
   typingMsg.className = 'chat-msg assistant typing';
   typingMsg.id = 'chat-typing-temp';
-  typingMsg.innerHTML = `<div class="chat-bubble assistant"><div class="spinner" style="border-top-color:var(--accent-2)"></div> Analyzing tactical transitions...</div>`;
+  typingMsg.innerHTML = `<div class="chat-bubble assistant"><div class="spinner" style="border-top-color:var(--accent-2)"></div> Running Groq multi-model inference (Llama + Mixtral)...</div>`;
   logEl.appendChild(typingMsg);
   logEl.scrollTop = logEl.scrollHeight;
   
@@ -2919,14 +2953,37 @@ async function sendChatMessage() {
       body: JSON.stringify({ message: text })
     }).then(r => r.json());
     
-    // Remove typing indicator
     const temp = document.getElementById('chat-typing-temp');
     if (temp) temp.remove();
     
-    // Append Assistant response
     const assistantMsg = document.createElement('div');
     assistantMsg.className = 'chat-msg assistant';
-    assistantMsg.innerHTML = `<div class="chat-bubble assistant">${res.response || "No response received."}</div>`;
+    
+    const bubbleId = 'bubble-' + Date.now();
+    const formatResponse = (txt) => {
+      if (!txt) return "No response received.";
+      return txt
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    };
+    
+    const formattedLlama = formatResponse(res.response);
+    const formattedMixtral = formatResponse(res.responseMixtral);
+    
+    assistantMsg.innerHTML = `
+      <div class="chat-bubble assistant" style="max-width: 600px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; font-size: 11px;">
+          <button id="tab-btn-llama-${bubbleId}" style="background: var(--accent); color:#000; border:none; padding:4px 8px; border-radius:4px; font-weight:800; cursor:pointer;" onclick="toggleModelTab('${bubbleId}', 'llama')">🦙 Llama 3.3</button>
+          <button id="tab-btn-mixtral-${bubbleId}" style="background: rgba(255,255,255,0.05); color:#fff; border:none; padding:4px 8px; border-radius:4px; font-weight:800; cursor:pointer;" onclick="toggleModelTab('${bubbleId}', 'mixtral')">🦁 Mixtral 8x7B</button>
+        </div>
+        <div id="content-llama-${bubbleId}" style="display: block; font-size:12px; line-height:1.5;">
+          ${formattedLlama}
+        </div>
+        <div id="content-mixtral-${bubbleId}" style="display: none; font-size:12px; line-height:1.5; color: var(--text-2);">
+          ${formattedMixtral}
+        </div>
+      </div>
+    `;
     logEl.appendChild(assistantMsg);
     logEl.scrollTop = logEl.scrollHeight;
   } catch (err) {
@@ -4490,3 +4547,28 @@ function getPlayerLastName(name) {
   const parts = name.split(/\s+/);
   return parts[parts.length - 1];
 }
+
+window.toggleModelTab = function(bubbleId, model) {
+  const llamaBtn = document.getElementById(`tab-btn-llama-${bubbleId}`);
+  const mixtralBtn = document.getElementById(`tab-btn-mixtral-${bubbleId}`);
+  const llamaContent = document.getElementById(`content-llama-${bubbleId}`);
+  const mixtralContent = document.getElementById(`content-mixtral-${bubbleId}`);
+  
+  if (!llamaBtn || !mixtralBtn || !llamaContent || !mixtralContent) return;
+  
+  if (model === 'llama') {
+    llamaBtn.style.background = 'var(--accent)';
+    llamaBtn.style.color = '#000';
+    mixtralBtn.style.background = 'rgba(255,255,255,0.05)';
+    mixtralBtn.style.color = '#fff';
+    llamaContent.style.display = 'block';
+    mixtralContent.style.display = 'none';
+  } else {
+    mixtralBtn.style.background = 'var(--accent-2)';
+    mixtralBtn.style.color = '#000';
+    llamaBtn.style.background = 'rgba(255,255,255,0.05)';
+    llamaBtn.style.color = '#fff';
+    llamaContent.style.display = 'none';
+    mixtralContent.style.display = 'block';
+  }
+};

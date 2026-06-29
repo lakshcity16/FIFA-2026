@@ -2670,22 +2670,39 @@ Do not infer match results. Do not fabricate statistics or details that are not 
 Provide precise, analytical answers. Write in the style of a premium Sky Sports football pundit. Make your response highly detailed yet engaging and professional. Limit your response to 150-220 words.`;
 
   try {
-    const r = await axios.post('https://api.groq.com/openai/v1/chat/completions',
-      {
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemMessage },
-          { role: 'user', content: message }
-        ],
-        max_tokens: 300,
-        temperature: 0.7
-      },
-      { headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } }
-    );
-    res.json({ response: r.data.choices[0].message.content.trim() });
+    const [rLlama, rMixtral] = await Promise.all([
+      axios.post('https://api.groq.com/openai/v1/chat/completions',
+        {
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'system', content: systemMessage }, { role: 'user', content: message }],
+          max_tokens: 300,
+          temperature: 0.7
+        },
+        { headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } }
+      ),
+      axios.post('https://api.groq.com/openai/v1/chat/completions',
+        {
+          model: 'mixtral-8x7b-32768',
+          messages: [
+            { role: 'system', content: systemMessage + "\nAdditionally, output your response in the style of an analytical statistician focused on data metrics." },
+            { role: 'user', content: message }
+          ],
+          max_tokens: 300,
+          temperature: 0.5
+        },
+        { headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } }
+      )
+    ]);
+    res.json({ 
+      response: rLlama.data.choices[0].message.content.trim(),
+      responseMixtral: rMixtral.data.choices[0].message.content.trim()
+    });
   } catch (e) {
     console.error('Groq chat error:', e.response?.data || e.message);
-    res.json({ response: "I'm analyzing the tactical transitions on the pitch right now, but it looks like my feed is temporarily lagging. Portugal, Spain, and France are still heavy favorites due to their squad depth!" });
+    res.json({ 
+      response: "I'm analyzing the tactical transitions on the pitch right now, but it looks like my feed is temporarily lagging.",
+      responseMixtral: "Data stream interrupted. Please refresh the connection."
+    });
   }
 });
 
