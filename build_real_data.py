@@ -6,7 +6,7 @@ build_real_data.py — FIFA WC 2026 data pipeline using REAL datasets:
 import json, pandas as pd, math, os, re
 
 os.makedirs('public', exist_ok=True)
-CURRENT_DATE = '2026-06-15'
+CURRENT_DATE = '2026-06-29'
 
 # ─────────────────────────────────────────────
 # 1. LOAD REAL DATASETS
@@ -156,7 +156,7 @@ for _, row in fx.iterrows():
     away = row['away_team']
     date = str(row['date'])
     match_num = int(row['match_number'])
-    is_played = date <= CURRENT_DATE and row['stage'] == 'group-stage'
+    is_played = date <= CURRENT_DATE
     # Use real scores for matches M001-M016, otherwise simulate if played
     if match_num in REAL_SCORES:
         hg, ag = REAL_SCORES[match_num]
