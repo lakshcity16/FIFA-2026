@@ -97,28 +97,181 @@ console.log(`Loaded ${GROUNDING_PLAYERS.length} players for grounding context`);
 // Verified real match scorelines, scorers, and stats for M001–M016 (June 11–15, 2026)
 
 const REAL_PLAYER_OVERRIDES = {
-    'Lionel Messi':    {goals: 6, assists: 2, rating: 9.5},
-    'Kylian Mbapp\u00e9':   {goals: 4, assists: 2, rating: 8.9},
-    'Vin\u00edcius J\u00fanior': {goals: 4, assists: 1, rating: 8.7},
-    'Vinicius Junior': {goals: 4, assists: 1, rating: 8.7},
-    'Erling Haaland':  {goals: 4, assists: 1, rating: 8.6},
-    'Ousmane Demb\u00e9l\u00e9': {goals: 4, assists: 1, rating: 8.5},
-    'Deniz Undav':     {goals: 3, assists: 1, rating: 8.3},
-    'Michael Olise':   {goals: 2, assists: 3, rating: 8.4},
-    'Bruno Guimar\u00e3es': {goals: 1, assists: 3, rating: 8.2},
-    'Alexander Isak':  {goals: 2, assists: 3, rating: 8.5},
-    'Brahim D\u00edaz':     {goals: 1, assists: 2, rating: 8.1},
-    'Breel Embolo':    {goals: 2, assists: 2, rating: 7.9},
-    'Joshua Kimmich':  {goals: 0, assists: 2, rating: 8.0},
-    'Denzel Dumfries': {goals: 1, assists: 2, rating: 7.8},
-    'Florian Wirtz':   {goals: 2, assists: 2, rating: 8.4},
-    'Bukayo Saka':     {goals: 2, assists: 2, rating: 8.2},
-    'Chris Wood':      {goals: 3, assists: 0, rating: 7.8},
-    'Sadio Man\u00e9':      {goals: 2, assists: 2, rating: 8.3},
-    'Riyad Mahrez':    {goals: 2, assists: 1, rating: 7.9},
-    'Mehdi Taremi':    {goals: 2, assists: 1, rating: 7.8},
-    'Salem Al-Dawsari':{goals: 1, assists: 1, rating: 7.5},
-    'Mohamed Salah':   {goals: 4, assists: 3, rating: 9.1}
+  "Vinicius Junior": {
+    "goals": 4,
+    "assists": 1,
+    "rating": 8.7,
+    "team": "Brazil",
+    "position": "Forward"
+  },
+  "Mohamed Salah": {
+    "goals": 4,
+    "assists": 3,
+    "rating": 9.1,
+    "team": "Egypt",
+    "position": "Forward"
+  },
+  "Deniz Undav": {
+    "goals": 3,
+    "assists": 1,
+    "rating": 8.3,
+    "team": "Germany",
+    "position": "Forward"
+  },
+  "Chris Wood": {
+    "goals": 3,
+    "assists": 0,
+    "rating": 7.8,
+    "team": "New Zealand",
+    "position": "Forward"
+  },
+  "Riyad Mahrez": {
+    "goals": 2,
+    "assists": 1,
+    "rating": 7.9,
+    "team": "Algeria",
+    "position": "Forward"
+  },
+  "Sa\u00efd Benrahma": {
+    "goals": 2,
+    "assists": 3,
+    "rating": 8.0,
+    "team": "Algeria",
+    "position": "Midfielder"
+  },
+  "S\u00e9bastien Haller": {
+    "goals": 2,
+    "assists": 1,
+    "rating": 7.8,
+    "team": "Congo DR",
+    "position": "Forward"
+  },
+  "Yoane Wissa": {
+    "goals": 2,
+    "assists": 0,
+    "rating": 7.5,
+    "team": "Congo DR",
+    "position": "Forward"
+  },
+  "Omar Marmoush": {
+    "goals": 2,
+    "assists": 2,
+    "rating": 8.0,
+    "team": "Egypt",
+    "position": "Forward"
+  },
+  "Mostafa Mohamed": {
+    "goals": 2,
+    "assists": 0,
+    "rating": 7.4,
+    "team": "Egypt",
+    "position": "Forward"
+  },
+  "Folarin Balogun": {
+    "goals": 2,
+    "assists": 0,
+    "rating": 8.14,
+    "team": "England",
+    "position": "Forward"
+  },
+  "Florian Wirtz": {
+    "goals": 2,
+    "assists": 2,
+    "rating": 8.4,
+    "team": "Germany",
+    "position": "Midfielder"
+  },
+  "Kai Havertz": {
+    "goals": 2,
+    "assists": 0,
+    "rating": 8.22,
+    "team": "Germany",
+    "position": "Forward"
+  },
+  "Mehdi Taremi": {
+    "goals": 2,
+    "assists": 1,
+    "rating": 7.8,
+    "team": "IR Iran",
+    "position": "Forward"
+  },
+  "Sardar Azmoun": {
+    "goals": 2,
+    "assists": 1,
+    "rating": 7.6,
+    "team": "IR Iran",
+    "position": "Forward"
+  },
+  "Bruno Guimar\u00e3es": {
+    "goals": 1,
+    "assists": 3,
+    "rating": 8.2,
+    "team": "Brazil",
+    "position": "Midfielder"
+  },
+  "Alexander Isak": {
+    "goals": 2,
+    "assists": 3,
+    "rating": 8.5,
+    "team": "Sweden",
+    "position": "Forward"
+  },
+  "Isma\u00ebl Bennacer": {
+    "goals": 0,
+    "assists": 2,
+    "rating": 7.8,
+    "team": "Algeria",
+    "position": "Midfielder"
+  },
+  "Joshua Kimmich": {
+    "goals": 0,
+    "assists": 2,
+    "rating": 8.0,
+    "team": "Germany",
+    "position": "Midfielder"
+  },
+  "Ryan Gravenberch": {
+    "goals": 0,
+    "assists": 2,
+    "rating": 7.58,
+    "team": "Netherlands",
+    "position": "Midfielder"
+  },
+  "Sadio Man\u00e9": {
+    "goals": 2,
+    "assists": 2,
+    "rating": 8.3,
+    "team": "Senegal",
+    "position": "Forward"
+  },
+  "Pape Matar Sarr": {
+    "goals": 0,
+    "assists": 2,
+    "rating": 7.8,
+    "team": "Senegal",
+    "position": "Midfielder"
+  },
+  "Breel Embolo": {
+    "goals": 2,
+    "assists": 2,
+    "rating": 7.9,
+    "team": "Switzerland",
+    "position": "Forward"
+  },
+  "Ramy Benseba\u00efni": {
+    "goals": 0,
+    "assists": 1,
+    "rating": 7.4,
+    "team": "Algeria",
+    "position": "Defender"
+  },
+  "Youcef Atal": {
+    "goals": 1,
+    "assists": 1,
+    "rating": 7.5,
+    "team": "Algeria",
+    "position": "Defender"
+  }
 };
 
 const REAL_MATCH_DETAILS = {
@@ -652,9 +805,7 @@ async function syncOpenFootballData() {
               const existScorer = existingMatch.scorers.find(s => s.team === 'home' && s.name === g.name && s.min === min);
               if (existScorer) assist = existScorer.assist;
             }
-            if (!assist && !g.name.includes('(o.g.)')) {
-              assist = getFuzzySquadPlayer(localFixture.home, 'Midfielder') || null;
-            }
+
             
             scorers.push({ team: 'home', name: g.name, min, assist });
           });
@@ -674,9 +825,7 @@ async function syncOpenFootballData() {
               const existScorer = existingMatch.scorers.find(s => s.team === 'away' && s.name === g.name && s.min === min);
               if (existScorer) assist = existScorer.assist;
             }
-            if (!assist && !g.name.includes('(o.g.)')) {
-              assist = getFuzzySquadPlayer(localFixture.away, 'Midfielder') || null;
-            }
+
             
             scorers.push({ team: 'away', name: g.name, min, assist });
           });
@@ -1364,14 +1513,31 @@ function getTournamentState(simTime) {
       p.rating = p.baseRating;
     }
     
-    // Apply live true data overrides dynamically
-    if (REAL_PLAYER_OVERRIDES[pName]) {
-      const ov = REAL_PLAYER_OVERRIDES[pName];
-      p.goals = ov.goals !== undefined ? ov.goals : p.goals;
-      p.assists = ov.assists !== undefined ? ov.assists : p.assists;
-      p.rating = ov.rating !== undefined ? ov.rating : p.rating;
-    }
   }
+  
+  // Apply live true data overrides dynamically, and add missing players
+  for (const pName in REAL_PLAYER_OVERRIDES) {
+    const ov = REAL_PLAYER_OVERRIDES[pName];
+    if (!playerStats[pName]) {
+      playerStats[pName] = {
+        name: pName,
+        team: ov.team,
+        position: ov.position,
+        goals: 0,
+        assists: 0,
+        minutes: 90,
+        ratingSum: ov.rating,
+        matchesPlayed: 1,
+        baseRating: ov.rating,
+        rating: ov.rating
+      };
+    }
+    const p = playerStats[pName];
+    p.goals = ov.goals !== undefined ? ov.goals : p.goals;
+    p.assists = ov.assists !== undefined ? ov.assists : p.assists;
+    p.rating = ov.rating !== undefined ? ov.rating : p.rating;
+  }
+
 
   return { fixtures: liveFixtures, groups: liveGroups, playerStats };
 }
