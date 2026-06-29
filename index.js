@@ -1225,11 +1225,36 @@ function getMatchMinute(kickoffTime, nowStr) {
 function generateDynamicMatchStats(match, minute, nowStr) {
   let isFT = minute === 'FT';
 
+  const realNow = new Date();
+  const realDateStr = realNow.toISOString().split('T')[0];
+  const simTime = nowStr || new Date().toISOString();
+  const simDateStr = new Date(simTime).toISOString().split('T')[0];
+  const matchDate = match.date;
+  
+  let shouldBePlayed = false;
+  if (matchDate < simDateStr) {
+    shouldBePlayed = true;
+  } else if (matchDate === simDateStr) {
+    if (simDateStr < realDateStr) {
+      shouldBePlayed = true;
+    } else {
+      const kickoff = new Date(match.kickoff);
+      if (new Date(simTime) >= kickoff) {
+        shouldBePlayed = true;
+      }
+    }
+  }
+
   if (minute === null) {
-    return { 
-      is_played: false, status: 'upcoming', minute: null, 
-      home_score: 0, away_score: 0, scorers: [], stats: null 
-    };
+    if (shouldBePlayed) {
+      minute = 'FT';
+      isFT = true;
+    } else {
+      return { 
+        is_played: false, status: 'upcoming', minute: null, 
+        home_score: 0, away_score: 0, scorers: [], stats: null 
+      };
+    }
   }
 
   // 1. Check verified hardcoded real match details first (M001–M016, plus M017-M020)
