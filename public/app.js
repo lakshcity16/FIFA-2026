@@ -310,12 +310,6 @@ async function refreshOverviewTab() {
   } else {
     document.getElementById('kpi-top-asst').textContent = '--';
   }
-  if (_performers.rating?.length) {
-    const tr = _performers.rating[0];
-    document.getElementById('kpi-top-rated').textContent = tr.player_name.split(' ').pop() + ' (' + tr.rating + '★)';
-  } else {
-    document.getElementById('kpi-top-rated').textContent = '--';
-  }
 
   // Date-filtered fixtures list (synced to the current simulated date)
   const dateStr = _simulatedDate.toISOString().split('T')[0];
