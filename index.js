@@ -1059,7 +1059,7 @@ function generateDynamicMatchStats(match, minute, nowStr) {
   if (minute === null) {
     // If the match is already played in reality, and the simulated date is >= the match date, just show the final score
     const simDate = new Date(nowStr).toISOString().split('T')[0];
-    const matchDate = new Date(match.kickoff).toISOString().split('T')[0];
+    const matchDate = match.date;
     if (match.is_played && simDate >= matchDate) {
       minute = 'FT';
       isFT = true;
