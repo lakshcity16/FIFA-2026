@@ -120,7 +120,8 @@ const REAL_PLAYER_OVERRIDES = {
     'Salem Al-Dawsari':{goals: 1, assists: 1, rating: 7.5},
     'Mohamed Salah':   {goals: 4, assists: 3, rating: 9.1}
 };
-\nconst REAL_MATCH_DETAILS = {
+
+const REAL_MATCH_DETAILS = {
   M001: {
     home_score: 2, away_score: 0,
     scorers: [
