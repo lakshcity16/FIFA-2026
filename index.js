@@ -11,6 +11,25 @@ const path = require('path');
 const http = require('http');
 const { Server } = require('socket.io');
 
+// Global API key rotator
+let fapiIndex = 0;
+const fapiKeys = [
+  process.env.fapi,
+  '89c4566c5d7945d81b89ed2ddbb11d87',
+  'f86d6eb53e7f9a888c7f12e84d47c41e',
+  '6a506bb803ecceec41d8e6c4dfab4f9d',
+  '2e2938ab9a01bf1e626cf8d451cb9c37',
+  'eb6d8a35649ec47f3b60e34c67ef8407',
+  '1adcc54792ecf01f05ef96e17ff989fc'
+].filter(Boolean);
+
+function getFapiKey() {
+  if (fapiKeys.length === 0) return null;
+  const k = fapiKeys[fapiIndex];
+  fapiIndex = (fapiIndex + 1) % fapiKeys.length;
+  return k;
+}
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -998,25 +1017,6 @@ const CSV_PLAYERS = (() => {
 console.log(`Loaded ${CSV_PLAYERS.length} real WC 2026 players from CSV`);
 
 // Build SQUADS from CSV_PLAYERS directly, with deduplication and 26-player cap per team
-// Global API key rotator
-let fapiIndex = 0;
-const fapiKeys = [
-  process.env.fapi,
-  '89c4566c5d7945d81b89ed2ddbb11d87',
-  'f86d6eb53e7f9a888c7f12e84d47c41e',
-  '6a506bb803ecceec41d8e6c4dfab4f9d',
-  '2e2938ab9a01bf1e626cf8d451cb9c37',
-  'eb6d8a35649ec47f3b60e34c67ef8407',
-  '1adcc54792ecf01f05ef96e17ff989fc'
-].filter(Boolean);
-
-function getFapiKey() {
-  if (fapiKeys.length === 0) return null;
-  const k = fapiKeys[fapiIndex];
-  fapiIndex = (fapiIndex + 1) % fapiKeys.length;
-  return k;
-}
-
 const SQUADS = {};
 CSV_PLAYERS.forEach(p => {
   if (!SQUADS[p.team]) SQUADS[p.team] = [];
