@@ -1,83 +1,103 @@
-# 🏆 FIFA World Cup 2026 AI Simulator & Manager
+# 🏆 FIFA World Cup 2026 AI Simulator & Manager (Premium Edition)
 
-An advanced, enterprise-grade AI simulation platform and match manager for the upcoming FIFA World Cup 2026. This project leverages LLM integration (Groq + LLaMA 3.1) and real-world player analytics to create an immersive, dynamic tournament experience.
+An enterprise-grade AI simulation platform and real-time tournament manager for the upcoming FIFA World Cup 2026. This platform integrates multiple LLMs (Llama 3.3 70B & Llama 3.1 8B), interactive data visualization, real-time WebSockets synchronization, and a custom RAG (Retrieval-Augmented Generation) pipeline to deliver a premium startup-grade portfolio application.
 
-🌐 **Live Demo (Render):** [https://fifa-2026-17jq.onrender.com/](https://fifa-2026-17jq.onrender.com/)
+🌐 **Live Production Link (Render):** [https://fifa-2026-17jq.onrender.com/](https://fifa-2026-17jq.onrender.com/)
 
-![Tournament Overview](https://i.imgur.com/your-screenshot-url.png) *<!-- Replace with actual screenshot -->*
+---
 
-## ✨ Key Features
+## 🛠️ Project Architecture
 
-- **🧠 Real-Time AI Match Pipeline**: Matches are simulated day-by-day using a background pipeline powered by Groq's `llama-3.1-8b-instant`. The LLM dynamically generates scorers, match events, possession stats, detailed narratives, and live commentary.
-- **📈 ML Tournament Predictions**: Monte Carlo-inspired predictions for group stages and knockout brackets, giving win-probabilities based on team power metrics (offense, defense, possession, creativity).
-- **🤖 Smart AI Draft & Auction**: Play as the manager of a nation. Features a complete interactive draft UI with an auction pool of **1,248 real players**. The opposing AI teams intelligently draft players based on specific tactical formations (e.g., 4-3-3, 4-2-3-1) ensuring balanced squads.
-- **💬 Grounded AI Chat Assistant (RAG)**: A built-in AI assistant capable of answering complex football queries. It utilizes a custom **RAG (Retrieval-Augmented Generation)** system grounded in a master dataset of 620 international players and their historical metrics (Caps, Goals, xG, Minutes Played, etc.).
-- **⏳ Time Machine Simulator**: Jump forward and backward in time! The tournament state (live matches, standings, top performers) dynamically reacts based on the selected simulated date.
-- **📊 Live Standings & Top Performers**: Real-time aggregation of goals, assists, player ratings, and xG from the AI pipeline, displaying the tournament's best performers and live group points tables.
+```mermaid
+graph TD
+    A[Client Browser] -->|Speech / Text Queries| B[Express.js Server]
+    A -->|WS Events / Standings / Draft| B
+    B -->|Rotational Load Balancing| C[Groq LLM Rotator]
+    C -->|Llama 3.3 70B| D[Sky Sports Pundit]
+    C -->|Llama 3.1 8B| E[Opta Statistical Analyst]
+    B -->|Retrieval Engine| F[(CSV Grounding Master & SquadLists)]
+    B -->|External API Sync| G[OpenFootball Sync Pipeline]
+```
 
-## 🛠️ Technology Stack
+### 1. Backend Layer (Express.js)
+* **API Routing**: Handles team standings, squad list queries, time machine dates, draft selections, and AI chat.
+* **OpenFootball Sync Engine**: Syncs live real-world matchday updates from API-Football.
+* **Groq Key Rotator**: Load-balances requests across 5 API keys (`fifa1` to `fifa5`) in a round-robin rotation to bypass Groq free-tier rate limits.
 
-- **Backend**: Node.js, Express.js
-- **Frontend**: Vanilla JS, HTML5, CSS3 (Modern Glassmorphism & Dashboard aesthetics)
-- **AI Integration**: [Groq API](https://console.groq.com/) for lightning-fast inference (LLaMA-3 models)
-- **Data Engine**: CSV parsing for RAG grounding, JSON for persistent fixture/analytics state.
+### 2. AI & RAG Pipeline
+* **Grounded AI RAG Engine**: Indexes **1,248 players** from `SquadLists.csv` and historical performance statistics from `FIFA2026_Grounding_Master.csv`. 
+* **Prioritized Match Lookup**: Search queries (e.g. `"Vitinha"`, `"Rodri"`) are matched against shirt names and canonical names, preventing accent-related lookup failures.
+* **Concurrent Multi-Model Comparison**: Queries to `/api/ai/chat` trigger concurrent calls (via `Promise.all`) to both Llama 3.3 (Tactical Pundit) and Llama 3.1 (Statistical Analyst) to compare model perspectives.
 
-## 🚀 Getting Started
+### 3. Frontend Visual System
+* **Dynamic Canvas Particles**: Responsive fullscreen particle system that drifts based on cursor coordinates and adapts colors to themes (Gold, Cyber, Samba, Frost).
+* **Interactive Passing Network**: An HTML5 Canvas pitch rendering lineups. Allows dragging player nodes to re-orient passing lanes and dynamically calculates passing volume.
+* **Opta Striker Efficiency Plot**: Chart.js scatter plot mapping forwards' Goals vs Expected Goals (xG).
+
+---
+
+## ✨ Features Spotlight
+
+1. **👤 Fan Dashboard (Tab 9)**: Save favorite team widgets, input score predictions in `localStorage`, track forecast accuracy points (+3 for exact score, +1 for correct outcome), and log real-time goal notifications.
+2. **🎙️ Speech-to-Text Voice Assistant**: Click `🎤` inside the AI Chat tab to speak queries natively using the browser Web Speech API.
+3. **🏆 10k Monte Carlo Tournament Simulator**: Simulate the remaining tournament matchups 10,000 times in the client to generate real-time trophy win probabilities for all 48 teams.
+
+---
+
+## 🚀 Installation & Local Setup
 
 ### Prerequisites
-- Node.js (v16+ recommended)
-- A Groq API Key
+* Node.js (v18+)
+* Groq API Keys (at least one key is required; up to five for rotation)
 
-### Installation
-
-1. **Clone the repository:**
+### Setup Instructions
+1. **Clone & Install**:
    ```bash
    git clone https://github.com/lakshcity16/FIFA-2026.git
    cd FIFA-2026
-   ```
-
-2. **Install dependencies:**
-   ```bash
    npm install
    ```
 
-3. **Configure Environment:**
-   Create a `.env` file in the root directory and add your Groq API key:
+2. **Configure Environment**:
+   Duplicate `.env.example` as `.env` and fill in your keys:
+   ```bash
+   cp .env.example .env
+   ```
+   Add your keys inside `.env`:
    ```env
-   GROQ_API_KEY=your_groq_api_key_here
+   fifa1=gsk_your_key_1_here
+   fifa2=gsk_your_key_2_here
+   # Add up to fifa5 for rotational load balancing
+   PORT=3050
    ```
 
-4. **Run the application:**
+3. **Start Server**:
    ```bash
    npm start
    ```
-   *(For development with auto-reload, use `npm run dev` if configured with nodemon)*
-
-5. **Open in Browser:**
-   Navigate to `http://localhost:3000`
-
-## 📂 Project Structure
-
-- `index.js` - Main Express server, AI Pipeline logic, RAG implementation, and API endpoints.
-- `public/` - Frontend assets (HTML, CSS, JS, Images, JSON data).
-- `public/app.js` - Core frontend logic for UI rendering, tab navigation, and AI integrations.
-- `data/` *(Root CSVs)* - `FIFA2026_Grounding_Master.csv`, `SquadLists.csv` used for RAG and Draft grounding.
-- `.env` - Environment variables (ignored in Git).
-
-## 💡 How the AI Works
-
-1. **Match Simulation**: When a match date is reached via the Time Machine, the background pipeline prompts the LLM with the fixture details. The LLM returns structured JSON containing scores, scorers, and stats.
-2. **AI Chat (RAG)**: User queries are matched against `FIFA2026_Grounding_Master.csv` using keyword and fuzzy-matching. The relevant context is injected into the prompt, grounding the LLM's responses in factual tournament data and player forms.
-
-## 🚀 Future Enhancements
-
-- **Multiplayer Draft Mode**: Allow friends to join the same lobby and draft against each other in real-time.
-- **Dynamic Player Morale**: Player forms shift dynamically based on match events and team momentum.
-- **Live Video Highlights Generation**: Integrating video generation APIs to showcase critical match moments.
-
-## 📝 License
-
-This project is licensed under the MIT License.
+   Access the dashboard locally at `http://localhost:3050`.
 
 ---
-*Built with ❤️ for the love of Football and AI.*
+
+## 🔮 Future Enhancement Roadmap (Home Laptop Checklist)
+
+Here is a devised roadmap to implement on your home laptop to upgrade this project to enterprise production standards:
+
+### 1. AI Scouting Module (`[ ]` Pending)
+* **Goal**: Add a search bar inside the Squad tab to scout player details.
+* **AI Logic**: Query Llama to return scouting reports including Strengths, Weaknesses, Transfer Value, Potential, and similar player profiles.
+
+### 2. AI Tactical Analyst (`[ ]` Pending)
+* **Goal**: Let users select a formation layout (e.g., 3-5-2 vs 4-3-3).
+* **AI Logic**: Generate structured tactical reports outlining defensive risk areas (e.g. "Weak Left Flank", "High Counter-Attack Vulnerability").
+
+### 3. Live Win-Probability Graphs (`[ ]` Pending)
+* **Goal**: Draw an updating line chart during live match simulations showing minute-by-minute win probabilities (Home Win / Draw / Away Win) reacting to goals and red cards.
+
+### 4. AI Voice Commentary (`[ ]` Pending)
+* **Goal**: Integrate Web Speech Synthesis (Text-to-Speech) so the AI narrates match goals and crucial timeline events aloud.
+
+### 5. Enterprise Infrastructure Upgrades (`[ ]` Pending)
+* **Docker Containerization**: Add a `Dockerfile` and `docker-compose.yml` to run the Express backend and client assets inside isolated containers.
+* **Automated Testing Suite**: Write unit tests for the CSV parsers and RAG retrieval methods utilizing Jest.
+* **Caching Layer**: Integrate Redis to cache LLM responses for similar match queries, boosting performance.
