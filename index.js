@@ -2682,7 +2682,7 @@ Provide precise, analytical answers. Write in the style of a premium Sky Sports 
       ),
       axios.post('https://api.groq.com/openai/v1/chat/completions',
         {
-          model: 'mixtral-8x7b-32768',
+          model: 'llama-3.1-8b-instant',
           messages: [
             { role: 'system', content: systemMessage + "\nAdditionally, output your response in the style of an analytical statistician focused on data metrics." },
             { role: 'user', content: message }

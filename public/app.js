@@ -2968,19 +2968,19 @@ async function sendChatMessage() {
     };
     
     const formattedLlama = formatResponse(res.response);
-    const formattedMixtral = formatResponse(res.responseMixtral);
+    const formattedLlama31 = formatResponse(res.responseMixtral);
     
     assistantMsg.innerHTML = `
       <div class="chat-bubble assistant" style="max-width: 600px; display: flex; flex-direction: column; gap: 8px;">
         <div style="display: flex; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; font-size: 11px;">
           <button id="tab-btn-llama-${bubbleId}" style="background: var(--accent); color:#000; border:none; padding:4px 8px; border-radius:4px; font-weight:800; cursor:pointer;" onclick="toggleModelTab('${bubbleId}', 'llama')">🦙 Llama 3.3</button>
-          <button id="tab-btn-mixtral-${bubbleId}" style="background: rgba(255,255,255,0.05); color:#fff; border:none; padding:4px 8px; border-radius:4px; font-weight:800; cursor:pointer;" onclick="toggleModelTab('${bubbleId}', 'mixtral')">🦁 Mixtral 8x7B</button>
+          <button id="tab-btn-mixtral-${bubbleId}" style="background: rgba(255,255,255,0.05); color:#fff; border:none; padding:4px 8px; border-radius:4px; font-weight:800; cursor:pointer;" onclick="toggleModelTab('${bubbleId}', 'mixtral')">🦙 Llama 3.1</button>
         </div>
         <div id="content-llama-${bubbleId}" style="display: block; font-size:12px; line-height:1.5;">
           ${formattedLlama}
         </div>
         <div id="content-mixtral-${bubbleId}" style="display: none; font-size:12px; line-height:1.5; color: var(--text-2);">
-          ${formattedMixtral}
+          ${formattedLlama31}
         </div>
       </div>
     `;
