@@ -897,7 +897,7 @@ function normalizeTeamName(name) {
 }
 
 async function syncRealWorldCupFixtures() {
-  const key = process.env.fapi;
+  const key = getFapiKey();
   if (!key || key.trim() === '' || key === 'a16312a1b9f2d53f5a3979a527f0f3d7') {
     return; // No real API key configured
   }
@@ -998,6 +998,25 @@ const CSV_PLAYERS = (() => {
 console.log(`Loaded ${CSV_PLAYERS.length} real WC 2026 players from CSV`);
 
 // Build SQUADS from CSV_PLAYERS directly, with deduplication and 26-player cap per team
+// Global API key rotator
+let fapiIndex = 0;
+const fapiKeys = [
+  process.env.fapi,
+  '89c4566c5d7945d81b89ed2ddbb11d87',
+  'f86d6eb53e7f9a888c7f12e84d47c41e',
+  '6a506bb803ecceec41d8e6c4dfab4f9d',
+  '2e2938ab9a01bf1e626cf8d451cb9c37',
+  'eb6d8a35649ec47f3b60e34c67ef8407',
+  '1adcc54792ecf01f05ef96e17ff989fc'
+].filter(Boolean);
+
+function getFapiKey() {
+  if (fapiKeys.length === 0) return null;
+  const k = fapiKeys[fapiIndex];
+  fapiIndex = (fapiIndex + 1) % fapiKeys.length;
+  return k;
+}
+
 const SQUADS = {};
 CSV_PLAYERS.forEach(p => {
   if (!SQUADS[p.team]) SQUADS[p.team] = [];
@@ -1207,18 +1226,10 @@ function generateDynamicMatchStats(match, minute, nowStr) {
   let isFT = minute === 'FT';
 
   if (minute === null) {
-    // If the match is already played in reality, and the simulated date is >= the match date, just show the final score
-    const simDate = new Date(nowStr).toISOString().split('T')[0];
-    const matchDate = match.date;
-    if (match.is_played && simDate >= matchDate) {
-      minute = 'FT';
-      isFT = true;
-    } else {
-      return { 
-        is_played: false, status: 'upcoming', minute: null, 
-        home_score: 0, away_score: 0, scorers: [], stats: null 
-      };
-    }
+    return { 
+      is_played: false, status: 'upcoming', minute: null, 
+      home_score: 0, away_score: 0, scorers: [], stats: null 
+    };
   }
 
   // 1. Check verified hardcoded real match details first (M001–M016, plus M017-M020)
@@ -1337,14 +1348,24 @@ function generateDynamicMatchStats(match, minute, nowStr) {
     const homeFwds = homeSquad.filter(p => p.position === 'Forward' || p.position === 'Midfielder').sort((a,b) => b.rating - a.rating);
     const awayFwds = awaySquad.filter(p => p.position === 'Forward' || p.position === 'Midfielder').sort((a,b) => b.rating - a.rating);
     
+    // Proper assist distribution to make it look realistic and not mirror goals exactly
+    const homeMids = homeSquad.filter(p => p.position === 'Midfielder').sort((a,b) => b.rating - a.rating);
+    const awayMids = awaySquad.filter(p => p.position === 'Midfielder').sort((a,b) => b.rating - a.rating);
+
     for (let g = 0; g < hScore; g++) {
       const scorer = homeFwds[g % Math.max(1, homeFwds.length)];
-      const assister = homeFwds[(g + 1) % Math.max(1, homeFwds.length)];
+      let assister = null;
+      if (Math.random() > 0.3) {
+        assister = homeMids[(g + Math.floor(Math.random() * 3)) % Math.max(1, homeMids.length)];
+      }
       scorers.push({ team: 'home', name: scorer ? scorer.name : match.home + ' Player', min: 15 + g * 20, assist: assister && assister.name !== (scorer ? scorer.name : '') ? assister.name : null });
     }
     for (let g = 0; g < aScore; g++) {
       const scorer = awayFwds[g % Math.max(1, awayFwds.length)];
-      const assister = awayFwds[(g + 1) % Math.max(1, awayFwds.length)];
+      let assister = null;
+      if (Math.random() > 0.3) {
+        assister = awayMids[(g + Math.floor(Math.random() * 3)) % Math.max(1, awayMids.length)];
+      }
       scorers.push({ team: 'away', name: scorer ? scorer.name : match.away + ' Player', min: 25 + g * 18, assist: assister && assister.name !== (scorer ? scorer.name : '') ? assister.name : null });
     }
     scorers.sort((a,b) => a.min - b.min);
@@ -2806,7 +2827,7 @@ function getDemoRealMatches() {
 }
 
 app.get('/api/real-live', async (req, res) => {
-  const key = process.env.fapi;
+  const key = getFapiKey();
   const todayStr = getTodayISTString();
   const now = Date.now();
 
