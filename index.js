@@ -562,7 +562,7 @@ Respond EXACTLY in this JSON format, nothing else:
 }`;
       try {
         const r = await axios.post('https://api.groq.com/openai/v1/chat/completions',
-          { model: 'llama-3.1-8b-instant', messages: [{ role: 'user', content: prompt }], max_tokens: 300, temperature: 0.7, response_format: { type: "json_object" } },
+          { model: 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: prompt }], max_tokens: 300, temperature: 0.7, response_format: { type: "json_object" } },
           { headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } }
         );
         const data = JSON.parse(r.data.choices[0].message.content);
@@ -1547,42 +1547,22 @@ app.get('/api/fixtures', (req, res) => {
 app.get('/api/performers', (req, res) => {
   syncOpenFootballData();
   const simTime = req.query.simulated_time || new Date().toISOString();
-  const { fixtures } = getTournamentState(simTime);
+  const { playerStats } = getTournamentState(simTime);
   
-  const pMap = {};
-  fixtures.forEach(f => {
-    if (f.is_played && f.scorers) {
-      f.scorers.forEach(s => {
-        const pName = s.name || s.player || 'Unknown';
-        if (!pMap[pName]) pMap[pName] = { player_name: pName, name: pName, team: s.team === 'home' ? f.home : f.away, position: 'Forward', goals: 0, assists: 0, rating: 7.0, xg: 0, saves: 0 };
-        pMap[pName].goals += 1;
-        pMap[pName].rating = Math.min(10, pMap[pName].rating + 0.8);
-        pMap[pName].xg += 0.45;
-        
-        if (s.assist) {
-          if (!pMap[s.assist]) pMap[s.assist] = { player_name: s.assist, name: s.assist, team: s.team === 'home' ? f.home : f.away, position: 'Midfielder', goals: 0, assists: 0, rating: 7.0, xg: 0, saves: 0 };
-          pMap[s.assist].assists += 1;
-          pMap[s.assist].rating = Math.min(10, pMap[s.assist].rating + 0.5);
-        }
-      });
-    }
-    // Merge LLM top performers if available
-    const realDetail = REAL_MATCH_DETAILS[f.id];
-    if (realDetail && realDetail.top_performers) {
-      realDetail.top_performers.forEach(tp => {
-        const tpName = tp.name || tp.player || 'Unknown';
-        if (!pMap[tpName]) pMap[tpName] = { player_name: tpName, name: tpName, team: tp.team === 'home' ? f.home : f.away, position: 'Midfielder', goals: 0, assists: 0, rating: 6.5, xg: 0, saves: 0 };
-        pMap[tpName].rating = Math.max(pMap[tpName].rating, tp.rating);
-        if (tp.xg) pMap[tpName].xg += tp.xg;
-      });
-    }
+  const arr = Object.values(playerStats);
+  
+  // Map fields and calculate proxy xG for display
+  arr.forEach(p => {
+    p.player_name = p.name;
+    // Proximate xG based on goals, position and base rating
+    const posMult = p.position === 'Forward' ? 1.2 : p.position === 'Midfielder' ? 0.7 : 0.2;
+    p.xg = parseFloat((p.goals * 0.8 + (p.matchesPlayed * posMult * (p.baseRating / 10))).toFixed(2));
   });
 
-  const arr = Object.values(pMap);
   const performers = {
     goals: [...arr].sort((a,b) => b.goals - a.goals || b.rating - a.rating).slice(0,10),
     assists: [...arr].sort((a,b) => b.assists - a.assists || b.rating - a.rating).slice(0,10),
-    rating: [...arr].sort((a,b) => b.rating - a.rating).slice(0,10),
+    rating: [...arr].filter(p => p.matchesPlayed > 0).sort((a,b) => b.rating - a.rating).slice(0,10),
     xg: [...arr].sort((a,b) => b.xg - a.xg || b.rating - a.rating).slice(0,10),
     saves: []
   };
@@ -1726,8 +1706,23 @@ app.get('/api/journey/:team', (req, res) => {
     const ha = ANALYTICS[home] || { offense:50, defense:50, passing:70, possession:50, creativity:50, overall_rating: 6.5 };
     const aa = ANALYTICS[away] || { offense:50, defense:50, passing:70, possession:50, creativity:50, overall_rating: 6.5 };
     
-    const hPow = (ha.offense*0.3 + ha.defense*0.25 + ha.passing*0.2 + ha.possession*0.15 + ha.creativity*0.1);
-    const aPow = (aa.offense*0.3 + aa.defense*0.25 + aa.passing*0.2 + aa.possession*0.15 + aa.creativity*0.1);
+    // Live Tournament Form Modifiers
+    const getFormMultiplier = (teamName) => {
+      let multiplier = 1.0;
+      for (const group of Object.values(groups)) {
+        const teamObj = group.find(t => t.team === teamName);
+        if (teamObj) {
+          // Add up to 15% boost for perfect 9 points, up to 10% boost for high GD
+          multiplier += (teamObj.pts * 0.016) + (Math.max(0, teamObj.gd) * 0.015);
+          break;
+        }
+      }
+      return multiplier;
+    };
+
+    let hPow = (ha.offense*0.3 + ha.defense*0.25 + ha.passing*0.2 + ha.possession*0.15 + ha.creativity*0.1) * getFormMultiplier(home);
+    let aPow = (aa.offense*0.3 + aa.defense*0.25 + aa.passing*0.2 + aa.possession*0.15 + aa.creativity*0.1) * getFormMultiplier(away);
+    
     const winProb = hPow / (hPow + aPow);
 
     let hash = 0;
@@ -1856,6 +1851,15 @@ app.post('/api/ai/analyze', async (req, res) => {
   const simTime = req.body.simulated_time || req.query.simulated_time || new Date().toISOString();
   const playerData = findSquadPlayer(player);
   const oppAnalytics = ANALYTICS[opponent] || {};
+  
+  // Inject Live Tournament KPIs
+  const { groups, playerStats } = getTournamentState(simTime);
+  const pTeamGroup = Object.values(groups).find(g => g.some(t => t.team === (playerData ? playerData.team : '')));
+  const pTeamLive = pTeamGroup ? pTeamGroup.find(t => t.team === (playerData ? playerData.team : '')) : null;
+  const oTeamGroup = Object.values(groups).find(g => g.some(t => t.team === opponent));
+  const oTeamLive = oTeamGroup ? oTeamGroup.find(t => t.team === opponent) : null;
+  const livePlayer = playerStats[player] || {};
+
   const key = nextKey();
   if (!key) return res.status(500).json({ error: 'No Groq API keys available' });
 
@@ -1867,23 +1871,25 @@ You are operating in the year 2026.
 PLAYER: ${player}${playerData ? `
 - Team: ${playerData.team} | Position: ${playerData.position} | Age: ${playerData.age}
 - Club: ${playerData.club} | Market Value: €${playerData.value_m}M
-- Tournament: ${playerData.goals} goals, ${playerData.assists} assists, ${playerData.minutes} mins, Rating: ${playerData.rating}` : ''}
+- Live Tournament Stats: ${livePlayer.goals || 0} goals, ${livePlayer.assists || 0} assists, ${livePlayer.minutes || 0} mins, Avg Rating: ${livePlayer.rating || playerData.rating}` : ''}
+${pTeamLive ? `- Team Live Form: ${pTeamLive.pts} points in Group Stage (${pTeamLive.w}W-${pTeamLive.d}D-${pTeamLive.l}L), GD: ${pTeamLive.gd}` : ''}
 
 OPPONENT: ${opponent}${oppAnalytics.overall_rating ? `
-- Avg Rating: ${oppAnalytics.overall_rating} | Group: ${oppAnalytics.group}
-- Offense: ${oppAnalytics.offense}/100 | Defense: ${oppAnalytics.defense}/100
-- Passing: ${oppAnalytics.passing}% | Creativity: ${oppAnalytics.creativity}/100` : ''}
+- Base Rating: ${oppAnalytics.overall_rating}
+- Base Metrics: Offense: ${oppAnalytics.offense}/100 | Defense: ${oppAnalytics.defense}/100 | Passing: ${oppAnalytics.passing}% | Creativity: ${oppAnalytics.creativity}/100` : ''}
+${oTeamLive ? `- Opponent Live Form: ${oTeamLive.pts} points in Group Stage (${oTeamLive.w}W-${oTeamLive.d}D-${oTeamLive.l}L), GD: ${oTeamLive.gd}` : ''}
 
 ${groundingContext}
 
 CRITICAL GROUNDING INSTRUCTIONS:
 Answer the matchup query ONLY using the provided retrieved grounding context and player/opponent data.
+Incorporate the live group stage points and form in your analysis of how the teams are performing (overperforming or underperforming).
 If the requested information is not available in the grounding context, say exactly:
 "Data not available in current knowledge base."
 Do not infer match results. Do not fabricate statistics or details that are not in the context.
 
 Write a 300-word expert matchup analysis covering:
-**1. Player Form & Style** — current tournament performance
+**1. Player & Team Form** — current tournament performance based on live stats
 **2. Tactical Matchup** — how does this player exploit or struggle against this opponent?
 **3. Key Stats to Watch** — expected goals, dribbles, passes, defensive actions
 **4. Prediction** — will they have a standout performance? Specific goal/assist prediction.
@@ -1892,7 +1898,7 @@ Be specific, use the data provided, and sound like a Sky Sports analyst.`;
 
   try {
     const r = await axios.post('https://api.groq.com/openai/v1/chat/completions',
-      { model: 'llama-3.1-8b-instant', messages: [{ role: 'user', content: prompt }], max_tokens: 600, temperature: 0.75 },
+      { model: 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: prompt }], max_tokens: 600, temperature: 0.75 },
       { headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } }
     );
     res.json({ analysis: r.data.choices[0].message.content, player_data: playerData });
@@ -2245,7 +2251,7 @@ Structure clearly with bold headers:
 
       const r = await axios.post('https://api.groq.com/openai/v1/chat/completions',
         {
-          model: 'llama-3.1-8b-instant',
+          model: 'llama-3.3-70b-versatile',
           messages: [{ role: 'user', content: prompt }],
           max_tokens: 250,
           temperature: 0.7
@@ -2283,7 +2289,7 @@ Keep it strictly to 1 or 2 sentences max. Do not output anything other than the 
 
   try {
     const r = await axios.post('https://api.groq.com/openai/v1/chat/completions',
-      { model: 'llama-3.1-8b-instant', messages: [{ role: 'user', content: prompt }], max_tokens: 150, temperature: 0.8 },
+      { model: 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: prompt }], max_tokens: 150, temperature: 0.8 },
       { headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } }
     );
     res.json({ commentary: r.data.choices[0].message.content.trim() });
@@ -2334,7 +2340,7 @@ Provide precise, analytical answers. Write in the style of a premium Sky Sports 
   try {
     const r = await axios.post('https://api.groq.com/openai/v1/chat/completions',
       {
-        model: 'llama-3.1-8b-instant',
+        model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: systemMessage },
           { role: 'user', content: message }
@@ -2392,7 +2398,7 @@ Include exactly 3 recent commentary events.`;
   try {
     const r = await axios.post('https://api.groq.com/openai/v1/chat/completions',
       {
-        model: 'llama-3.1-8b-instant',
+        model: 'llama-3.3-70b-versatile',
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 300,
         temperature: 0.7,
@@ -2456,7 +2462,7 @@ Player 2: ${player2.name} (Team: ${player2.team}, Pos: ${player2.position}, Age:
 Provide a concise, 100-word tactical comparison of their roles, strengths, and who would be more critical in a tournament setting. Be specific, analytical, and sound like a Sky Sports pundit.`;
     try {
       const r = await axios.post('https://api.groq.com/openai/v1/chat/completions',
-        { model: 'llama-3.1-8b-instant', messages: [{ role: 'user', content: prompt }], max_tokens: 200, temperature: 0.7 },
+        { model: 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: prompt }], max_tokens: 200, temperature: 0.7 },
         { headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, timeout: 3500 }
       );
       aiComparison = r.data.choices[0].message.content.trim();
